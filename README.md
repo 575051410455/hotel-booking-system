@@ -1,4 +1,4 @@
-# app-easy-connect
+# hotel-booking-system
 
 To install dependencies:
 
