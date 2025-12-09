@@ -160,3 +160,6 @@ export type NewBlackoutDate = typeof blackoutDates.$inferInsert;
 
 export type MinimumStayRule = typeof minimumStayRules.$inferSelect;
 export type NewMinimumStayRule = typeof minimumStayRules.$inferInsert;
+
+
+

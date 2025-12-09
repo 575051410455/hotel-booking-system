@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { zValidator } from '@hono/zod-validator';
-import { bookingService } from '../services';
+import { bookingService } from '../services/booking.service';
 import {
   createBookingSchema,
   updateBookingSchema,

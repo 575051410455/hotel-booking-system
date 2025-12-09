@@ -90,6 +90,7 @@ export type IdParam = z.infer<typeof idParamSchema>;
 
 
 
+
 // Booking Status Enum
 export const bookingStatusSchema = z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'VOID']);
 
@@ -108,7 +109,11 @@ export const createBookingSchema = z.object({
   paymentMethod: z.string().min(1, 'Payment method is required'),
   documents: z.array(z.string()).optional(),
   notes: z.string().optional(),
-}).refine((data) => new Date(data.checkOut) > new Date(data.checkIn), {
+}).refine((data) => {
+  const checkIn = new Date(data.checkIn);
+  const checkOut = new Date(data.checkOut);
+  return checkOut > checkIn;
+}, {
   message: 'Check-out date must be after check-in date',
   path: ['checkOut'],
 });
@@ -171,41 +176,71 @@ export const checkAvailabilitySchema = z.object({
   path: ['checkOut'],
 });
 
-// Room Type Schema
+// ============ Room Type Schemas ============
+
 export const createRoomTypeSchema = z.object({
-  name: z.string().min(1, 'Room type name is required'),
-  nameEn: z.string().min(1, 'English name is required'),
-  totalRooms: z.number().int().min(0, 'Total rooms must be non-negative'),
+  name: z.string().min(1, 'Name is required'),
+  totalRooms: z.number().int().positive('Total rooms must be positive'),
+  baseRate: z.number().nonnegative('Base rate must be non-negative'),
+  description: z.string().optional(),
+  amenities: z.array(z.string()).optional(),
 });
 
-// Company Schema
-export const createCompanySchema = z.object({
-  name: z.string().min(1, 'Company name is required'),
+export const updateRoomTypeSchema = z.object({
+  name: z.string().min(1).optional(),
+  totalRooms: z.number().int().positive().optional(),
+  baseRate: z.number().nonnegative().optional(),
+  description: z.string().optional(),
+  amenities: z.array(z.string()).optional(),
 });
 
-// Sales Owner Schema
+// ============ Company Schemas ============
 export const createSalesOwnerSchema = z.object({
-  name: z.string().min(1, 'Sales owner name is required'),
+  name: z.string().min(1, 'Name is required'),
+  email: z.string().email('Invalid email format'),
+  phone: z.string().optional(),
+  isActive: z.boolean().optional(),
+});
+
+
+export const updateSalesOwnerSchema = z.object({
+  name: z.string().min(1).optional(),
   email: z.string().email().optional(),
   phone: z.string().optional(),
-  active: z.boolean().default(true),
+  isActive: z.boolean().optional(),
 });
 
-// Blackout Date Schema
+
+// ============ Blackout Date Schemas ============
 export const createBlackoutDateSchema = z.object({
-  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  date: z.string().min(1, 'Date is required'),
   reason: z.string().optional(),
 });
 
-// Minimum Stay Rule Schema
+
+// ============ Minimum Stay Rule Schemas ============
+
 export const createMinimumStayRuleSchema = z.object({
-  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
-  minNights: z.number().int().min(1),
-}).refine((data) => new Date(data.endDate) >= new Date(data.startDate), {
-  message: 'End date must be after or equal to start date',
+  startDate: z.string().min(1, 'Start date is required'),
+  endDate: z.string().min(1, 'End date is required'),
+  minNights: z.number().int().positive('Minimum nights must be positive'),
+}).refine((data) => {
+  const start = new Date(data.startDate);
+  const end = new Date(data.endDate);
+  return end >= start;
+}, {
+  message: 'End date must be on or after start date',
   path: ['endDate'],
 });
+
+export const updateMinimumStayRuleSchema = z.object({
+  startDate: z.string().min(1).optional(),
+  endDate: z.string().min(1).optional(),
+  minNights: z.number().int().positive().optional(),
+});
+
+
+
 
 export type CreateBookingInput = z.infer<typeof createBookingSchema>;
 export type UpdateBookingInput = z.infer<typeof updateBookingSchema>;
@@ -213,3 +248,19 @@ export type CancelBookingInput = z.infer<typeof cancelBookingSchema>;
 export type AmendBookingInput = z.infer<typeof amendBookingSchema>;
 export type ListBookingsQuery = z.infer<typeof listBookingsQuerySchema>;
 export type CheckAvailabilityInput = z.infer<typeof checkAvailabilitySchema>;
+
+
+
+// Type exports
+
+export type CreateRoomTypeInput = z.infer<typeof createRoomTypeSchema>;
+export type UpdateRoomTypeInput = z.infer<typeof updateRoomTypeSchema>;
+
+export type CreateSalesOwnerInput = z.infer<typeof createSalesOwnerSchema>;
+export type UpdateSalesOwnerInput = z.infer<typeof updateSalesOwnerSchema>;
+
+export type CreateBlackoutDateInput = z.infer<typeof createBlackoutDateSchema>;
+
+export type CreateMinimumStayRuleInput = z.infer<typeof createMinimumStayRuleSchema>;
+export type UpdateMinimumStayRuleInput = z.infer<typeof updateMinimumStayRuleSchema>;
+
