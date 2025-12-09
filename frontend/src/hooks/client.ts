@@ -92,7 +92,9 @@ export const api = {
   },
 
   delete: async <T>(url: string): Promise<T> => {
-    const response = await authFetch(`${API_BASE_URL}${url}`);
+    const response = await authFetch(`${API_BASE_URL}${url}`, {
+      method: "DELETE"
+    });
     const data = await response.json();
     if (!response.ok) {
       throw new Error(data.message || "เกิดข้อผิดพลาด");

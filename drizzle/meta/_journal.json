@@ -15,6 +15,13 @@
       "when": 1764813910598,
       "tag": "0001_serious_red_hulk",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1765189242913,
+      "tag": "0002_glorious_leader",
+      "breakpoints": true
     }
   ]
 }

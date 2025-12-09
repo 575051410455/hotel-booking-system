@@ -87,3 +87,129 @@ export const idParamSchema = z.object({
   id: z.string().uuid("ID ไม่ถูกต้อง"),
 });
 export type IdParam = z.infer<typeof idParamSchema>;
+
+
+
+// Booking Status Enum
+export const bookingStatusSchema = z.enum(['PENDING', 'CONFIRMED', 'CANCELLED', 'VOID']);
+
+// Create Booking Schema
+export const createBookingSchema = z.object({
+  customerName: z.string().min(1, 'Customer name is required'),
+  company: z.string().min(1, 'Company is required'),
+  saleOwner: z.string().min(1, 'Sale owner is required'),
+  phone: z.string().min(1, 'Phone is required'),
+  email: z.string().email('Invalid email format'),
+  checkIn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+  checkOut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Invalid date format (YYYY-MM-DD)'),
+  roomType: z.string().min(1, 'Room type is required'),
+  numberOfRooms: z.number().int().min(1, 'Number of rooms must be at least 1'),
+  rate: z.number().min(0, 'Rate must be non-negative'),
+  paymentMethod: z.string().min(1, 'Payment method is required'),
+  documents: z.array(z.string()).optional(),
+  notes: z.string().optional(),
+}).refine((data) => new Date(data.checkOut) > new Date(data.checkIn), {
+  message: 'Check-out date must be after check-in date',
+  path: ['checkOut'],
+});
+
+// Update Booking Schema
+export const updateBookingSchema = z.object({
+  customerName: z.string().min(1).optional(),
+  company: z.string().min(1).optional(),
+  saleOwner: z.string().min(1).optional(),
+  phone: z.string().min(1).optional(),
+  email: z.string().email().optional(),
+  checkIn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  checkOut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).optional(),
+  roomType: z.string().min(1).optional(),
+  numberOfRooms: z.number().int().min(1).optional(),
+  rate: z.number().min(0).optional(),
+  paymentMethod: z.string().min(1).optional(),
+  status: bookingStatusSchema.optional(),
+  documents: z.array(z.string()).optional(),
+  notes: z.string().optional(),
+});
+
+// Cancel Booking Schema
+export const cancelBookingSchema = z.object({
+  cancelReason: z.string().min(1, 'Cancel reason is required'),
+  cancelDocuments: z.array(z.string()).optional(),
+  cancelledBy: z.string().min(1, 'Cancelled by is required'),
+});
+
+// Amend Booking Schema
+export const amendBookingSchema = z.object({
+  amendments: updateBookingSchema,
+  amendedBy: z.string().min(1, 'Amended by is required'),
+  amendLogs: z.array(z.object({
+    field: z.string(),
+    before: z.any(),
+    after: z.any(),
+  })),
+});
+
+// Query Parameters Schema
+export const listBookingsQuerySchema = z.object({
+  status: bookingStatusSchema.optional(),
+  checkIn: z.string().optional(),
+  checkOut: z.string().optional(),
+  roomType: z.string().optional(),
+  saleOwner: z.string().optional(),
+  company: z.string().optional(),
+  page: z.string().transform(Number).pipe(z.number().int().min(1)).optional(),
+  limit: z.string().transform(Number).pipe(z.number().int().min(1).max(100)).optional(),
+});
+
+// Availability Check Schema
+export const checkAvailabilitySchema = z.object({
+  checkIn: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  checkOut: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  roomType: z.string().min(1),
+}).refine((data) => new Date(data.checkOut) > new Date(data.checkIn), {
+  message: 'Check-out date must be after check-in date',
+  path: ['checkOut'],
+});
+
+// Room Type Schema
+export const createRoomTypeSchema = z.object({
+  name: z.string().min(1, 'Room type name is required'),
+  nameEn: z.string().min(1, 'English name is required'),
+  totalRooms: z.number().int().min(0, 'Total rooms must be non-negative'),
+});
+
+// Company Schema
+export const createCompanySchema = z.object({
+  name: z.string().min(1, 'Company name is required'),
+});
+
+// Sales Owner Schema
+export const createSalesOwnerSchema = z.object({
+  name: z.string().min(1, 'Sales owner name is required'),
+  email: z.string().email().optional(),
+  phone: z.string().optional(),
+  active: z.boolean().default(true),
+});
+
+// Blackout Date Schema
+export const createBlackoutDateSchema = z.object({
+  date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  reason: z.string().optional(),
+});
+
+// Minimum Stay Rule Schema
+export const createMinimumStayRuleSchema = z.object({
+  startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  minNights: z.number().int().min(1),
+}).refine((data) => new Date(data.endDate) >= new Date(data.startDate), {
+  message: 'End date must be after or equal to start date',
+  path: ['endDate'],
+});
+
+export type CreateBookingInput = z.infer<typeof createBookingSchema>;
+export type UpdateBookingInput = z.infer<typeof updateBookingSchema>;
+export type CancelBookingInput = z.infer<typeof cancelBookingSchema>;
+export type AmendBookingInput = z.infer<typeof amendBookingSchema>;
+export type ListBookingsQuery = z.infer<typeof listBookingsQuerySchema>;
+export type CheckAvailabilityInput = z.infer<typeof checkAvailabilitySchema>;

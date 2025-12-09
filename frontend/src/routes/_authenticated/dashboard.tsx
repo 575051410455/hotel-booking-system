@@ -35,6 +35,31 @@ import {
   Cell,
 } from "recharts";
 
+import { 
+  IconUsers, 
+  IconActivity, 
+  IconLogin, 
+  IconShield,
+  IconTrendingUp,
+  IconBuildingSkyscraper,
+  IconCurrencyDollar,
+  IconCalendarEvent,
+  IconBed,
+} from "@tabler/icons-react";
+
+
+import { 
+  Card, 
+  CardAction,
+
+  CardDescription, 
+  CardFooter,
+  CardHeader, 
+  CardTitle 
+} from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+
+
 type Menu = "check" | "book" | "confirm" | "amend" | "table";
 
 interface DashboardProps {
@@ -43,7 +68,7 @@ interface DashboardProps {
 }
 
 // ---------- TanStack Route Wrapper ----------
-export const Route = createFileRoute("/dashboard")({
+export const Route = createFileRoute("/_authenticated/dashboard")({
   beforeLoad: () => {
     const { isAuthenticated } = useAuthStore.getState();
     if (!isAuthenticated) {
@@ -332,7 +357,7 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
         </div>
 
         {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+        {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <div className="bg-white rounded-xl shadow p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="bg-blue-100 p-3 rounded-lg">
@@ -411,9 +436,134 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
                 <p className="text-gray-600">Check-out</p>
               </div>
             </div>
-          </div>
-        </div>
+          </div> 
+        </div> */} 
 
+      {/* Hotel Stats Cards - SectionCards Style */}
+      <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-sm md:grid-cols-2 xl:grid-cols-4 mb-8">
+        {/* Total Bookings */}
+        <Card className="@container/card rounded-xl shadow p-3">
+          <CardHeader>
+            <CardDescription className="flex items-center gap-2">
+              <IconCalendarEvent className="size-4" />
+              การจองทั้งหมด
+            </CardDescription>
+            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              {stats.total}
+            </CardTitle>
+            <CardAction>
+              <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
+                <IconTrendingUp className="size-3" />
+                +12.5%
+              </Badge>
+            </CardAction>
+          </CardHeader>
+          <CardFooter className="flex-col items-start gap-1.5 text-sm">
+            <div className="flex gap-2">
+              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+                รอดำเนินการ: {stats.pending}
+              </Badge>
+              <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100">
+                ยืนยันแล้ว: {stats.confirmed}
+              </Badge>
+            </div>
+          </CardFooter>
+        </Card>
+
+        {/* Revenue */}
+        <Card className="@container/card rounded-xl shadow p-3">
+          <CardHeader>
+            <CardDescription className="flex items-center gap-2">
+              <IconCurrencyDollar className="size-4" />
+              รายได้ทั้งหมด
+            </CardDescription>
+            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              ฿{stats.revenue.toLocaleString()}
+            </CardTitle>
+            <CardAction>
+              <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
+                <IconTrendingUp className="size-3" />
+                +8.2%
+              </Badge>
+            </CardAction>
+          </CardHeader>
+          <CardFooter className="flex-col items-start gap-1.5 text-sm">
+            <div className="line-clamp-1 flex gap-2 font-medium text-green-600">
+              เพิ่มขึ้นจากเดือนที่แล้ว <IconTrendingUp className="size-4" />
+            </div>
+            <div className="text-muted-foreground">
+              จากการจองที่ยืนยันแล้ว
+            </div>
+          </CardFooter>
+        </Card>
+
+        {/* Occupancy Rate */}
+        <Card className="@container/card rounded-xl shadow p-3">
+          <CardHeader>
+            <CardDescription className="flex items-center gap-2">
+              <IconBed className="size-4" />
+              อัตราการเข้าพัก
+            </CardDescription>
+            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              {stats.occupancyRate}%
+            </CardTitle>
+            <CardAction>
+              <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
+                <IconBuildingSkyscraper className="size-3" />
+                {stats.occupiedRooms}/{stats.totalRooms}
+              </Badge>
+            </CardAction>
+          </CardHeader>
+          <CardFooter className="flex-col items-start gap-1.5 text-sm">
+            <div className="w-full">
+              <div className="flex justify-between text-xs mb-1">
+                <span className="text-muted-foreground">ห้องที่ถูกจอง</span>
+                <span className="font-medium">{stats.occupiedRooms} ห้อง</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-2">
+                <div
+                  className="bg-purple-600 h-2 rounded-full transition-all"
+                  style={{ width: `${stats.occupancyRate}%` }}
+                />
+              </div>
+            </div>
+          </CardFooter>
+        </Card>
+
+        {/* Today Check-in/out */}
+        <Card className="@container/card rounded-xl shadow p-3">
+          <CardHeader>
+            <CardDescription className="flex items-center gap-2">
+              <IconUsers className="size-4" />
+              วันนี้
+            </CardDescription>
+            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+              {stats.todayCheckIns + stats.todayCheckOuts} รายการ
+            </CardTitle>
+            <CardAction>
+              <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">
+                <IconActivity className="size-3" />
+                Active
+              </Badge>
+            </CardAction>
+          </CardHeader>
+          <CardFooter className="flex-col items-start gap-1.5 text-sm">
+            <div className="flex items-center gap-4 w-full">
+              <div className="flex-1">
+                <p className="text-2xl font-bold text-green-600">{stats.todayCheckIns}</p>
+                <p className="text-muted-foreground text-xs">Check-in</p>
+              </div>
+              <div className="h-10 w-px bg-border" />
+              <div className="flex-1">
+                <p className="text-2xl font-bold text-blue-600">{stats.todayCheckOuts}</p>
+                <p className="text-muted-foreground text-xs">Check-out</p>
+              </div>
+            </div>
+          </CardFooter>
+        </Card>
+      </div>
+
+      
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Booking Status Chart */}

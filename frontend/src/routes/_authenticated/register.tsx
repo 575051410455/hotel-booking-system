@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Link } from "@tanstack/react-router";
 
-export const Route = createFileRoute("/register")({
+export const Route = createFileRoute("/_authenticated/register")({
   component: RegisterComponent,
 });
 

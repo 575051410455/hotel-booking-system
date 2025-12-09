@@ -6,7 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { User as UserIcon, Mail, Calendar, Shield } from "lucide-react";
 
 
-export const Route = createFileRoute("/profile")({
+export const Route = createFileRoute("/_authenticated/profile")({
   component: UserComponent,
 });
 

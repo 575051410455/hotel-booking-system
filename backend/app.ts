@@ -9,6 +9,7 @@ import { secureHeaders } from "hono/secure-headers";
 import authRoutes from "./routes/auth";
 import usersRoutes from "./routes/users";
 import logsRoutes from "./routes/logs";
+import bookingRoutes from "./routes/booking";
 
 
 
@@ -34,7 +35,7 @@ const apiRoutes = app.basePath("/api")
     .route("/auth", authRoutes)
     .route("/users", usersRoutes)
     .route("/logs", logsRoutes)
-
+    .route('/bookings', bookingRoutes)
 
 
 // Health check

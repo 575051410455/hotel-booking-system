@@ -23,6 +23,10 @@ function RootLayout() {
     navigate({ to: "/logs" }); // ถ้ายังไม่มีหน้า /logs ก็เปลี่ยน path ได้เลย
   };
 
+    const handleViewUsers = () => {
+    navigate({ to: "/users" }); // ถ้ายังไม่มีหน้า /logs ก็เปลี่ยน path ได้เลย
+  };
+
   // ถ้ายังไม่ล็อกอิน → ไม่ต้องมี Header
   if (!isAuthenticated || !user) {
     return (
@@ -39,6 +43,7 @@ function RootLayout() {
         user={user}
         onLogout={handleLogout}
         onViewLogs={user.role === "admin" ? handleViewLogs : undefined}
+        onViewUsers={user.role === "admin" ? handleViewUsers : undefined}
       />
 
       <main className="flex-1">

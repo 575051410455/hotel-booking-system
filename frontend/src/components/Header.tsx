@@ -1,13 +1,14 @@
-import { Hotel, LogOut, User as UserIcon, Activity } from 'lucide-react';
+import { Hotel, LogOut, User as UserIcon, Activity, Users2 } from 'lucide-react';
 import type { User } from '@/hooks/auth';
 
 interface HeaderProps {
   user: User;
   onLogout: () => void;
   onViewLogs?: () => void;
+  onViewUsers?: () => void;
 }
 
-export function Header({ user, onLogout, onViewLogs }: HeaderProps) {
+export function Header({ user, onLogout, onViewLogs, onViewUsers }: HeaderProps) {
   const getRoleBadge = (role: string) => {
     const badges: Record<string, string> = {
       admin: 'bg-purple-100 text-purple-800',
@@ -58,7 +59,17 @@ export function Header({ user, onLogout, onViewLogs }: HeaderProps) {
                 <span className="hidden sm:inline">Activity Logs</span>
               </button>
             )}
-            
+
+            {user.role === 'admin' && onViewUsers && (
+              <button
+                onClick={onViewUsers}
+                className="flex items-center gap-2 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <Users2 className="w-5 h-5" />
+                <span>Manage Users</span>
+              </button>
+            )}
+
             <div className="flex items-center gap-3 px-4 py-2 bg-gray-50 rounded-lg">
               <UserIcon className="w-5 h-5 text-gray-600" />
               <div className="text-left hidden sm:block">
