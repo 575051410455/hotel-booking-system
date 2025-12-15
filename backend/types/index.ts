@@ -157,11 +157,18 @@ export const amendBookingSchema = z.object({
 // Query Parameters Schema
 export const listBookingsQuerySchema = z.object({
   status: bookingStatusSchema.optional(),
+
+  checkInFrom: z.string().optional(),
+  checkInTo: z.string().optional(),
   checkIn: z.string().optional(),
   checkOut: z.string().optional(),
+
+  search: z.string().optional(),
+
+  company: z.string().optional(),
   roomType: z.string().optional(),
   saleOwner: z.string().optional(),
-  company: z.string().optional(),
+
   page: z.string().transform(Number).pipe(z.number().int().min(1)).optional(),
   limit: z.string().transform(Number).pipe(z.number().int().min(1).max(100)).optional(),
 });
@@ -194,14 +201,39 @@ export const updateRoomTypeSchema = z.object({
   amenities: z.array(z.string()).optional(),
 });
 
+
 // ============ Company Schemas ============
+
+export const createCompanySchema = z.object({
+  name: z.string().min(1, 'Name is required'),
+  contactPerson: z.string().optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  taxId: z.string().optional(),
+  creditTerms: z.number().int().nonnegative().optional(),
+  isActive: z.boolean().optional(),
+});
+
+export const updateCompanySchema = z.object({
+  name: z.string().min(1).optional(),
+  contactPerson: z.string().optional(),
+  email: z.string().email().optional().or(z.literal('')),
+  phone: z.string().optional(),
+  address: z.string().optional(),
+  taxId: z.string().optional(),
+  creditTerms: z.number().int().nonnegative().optional(),
+  isActive: z.boolean().optional(),
+});
+
+// ============ Sales Owner Schemas ============
+
 export const createSalesOwnerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
   email: z.string().email('Invalid email format'),
   phone: z.string().optional(),
   isActive: z.boolean().optional(),
 });
-
 
 export const updateSalesOwnerSchema = z.object({
   name: z.string().min(1).optional(),
@@ -256,6 +288,9 @@ export type CheckAvailabilityInput = z.infer<typeof checkAvailabilitySchema>;
 export type CreateRoomTypeInput = z.infer<typeof createRoomTypeSchema>;
 export type UpdateRoomTypeInput = z.infer<typeof updateRoomTypeSchema>;
 
+export type CreateCompanyInput = z.infer<typeof createCompanySchema>;
+export type UpdateCompanyInput = z.infer<typeof updateCompanySchema>;
+
 export type CreateSalesOwnerInput = z.infer<typeof createSalesOwnerSchema>;
 export type UpdateSalesOwnerInput = z.infer<typeof updateSalesOwnerSchema>;
 
@@ -263,4 +298,6 @@ export type CreateBlackoutDateInput = z.infer<typeof createBlackoutDateSchema>;
 
 export type CreateMinimumStayRuleInput = z.infer<typeof createMinimumStayRuleSchema>;
 export type UpdateMinimumStayRuleInput = z.infer<typeof updateMinimumStayRuleSchema>;
+
+
 

@@ -43,20 +43,34 @@ export const refreshTokens = pgTable("refresh_tokens", {
 // Room Types Table
 export const roomTypes = pgTable('room_types', {
   id: text('id').primaryKey(),
-  name: text('name').notNull(),
-  nameEn: text('name_en').notNull(),
-  totalRooms: integer('total_rooms').notNull().default(0),
+  name: text('name').notNull().unique(),
+  totalRooms: integer('total_rooms').notNull(),
+  baseRate: decimal('base_rate', { precision: 10, scale: 2 }).notNull(),
+  description: text('description'),
+  amenities: jsonb('amenities').$type<string[]>(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+  deletedBy: text('deleted_by'),
 });
 
 // Companies Table
 export const companies = pgTable('companies', {
   id: text('id').primaryKey(),
-  name: text('name').notNull().unique(),
+  name: text('name').notNull(),
+  contactPerson: text('contact_person'),
+  email: text('email'),
+  phone: text('phone'),
+  address: text('address'),
+  taxId: text('tax_id'),
+  creditTerms: integer('credit_terms').default(0),
+  isActive: boolean('is_active').notNull().default(true),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+  deletedBy: text('deleted_by'),
 });
+
 
 // Sales Owners Table
 export const salesOwners = pgTable('sales_owners', {
@@ -67,6 +81,8 @@ export const salesOwners = pgTable('sales_owners', {
   active: boolean('active').default(true).notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+  deletedBy: text('deleted_by'),
 });
 
 // Bookings Table
@@ -104,12 +120,33 @@ export const bookings = pgTable('bookings', {
     }[];
   }[]>(),
   notes: text('notes'),
+  deletedAt: timestamp('deleted_at'),
+  deletedBy: text('deleted_by'),
 }, (table) => ({
+  // Existing indexes
   bookingIdIdx: index('booking_id_idx').on(table.bookingId),
   statusIdx: index('status_idx').on(table.status),
   checkInIdx: index('check_in_idx').on(table.checkIn),
   checkOutIdx: index('check_out_idx').on(table.checkOut),
   roomTypeIdx: index('room_type_idx').on(table.roomType),
+
+  // New search optimization indexes
+  customerNameIdx: index('customer_name_idx').on(table.customerName),
+  phoneIdx: index('phone_idx').on(table.phone),
+  emailIdx: index('email_idx').on(table.email),
+  companyIdx: index('company_idx').on(table.company),
+  saleOwnerIdx: index('sale_owner_idx').on(table.saleOwner),
+
+  // Composite index for common query patterns
+  statusCheckInRoomTypeIdx: index('status_checkin_roomtype_idx').on(
+    table.status,
+    table.checkIn,
+    table.roomType
+  ),
+
+  // Soft delete and hold expiry indexes
+  deletedAtIdx: index('deleted_at_idx').on(table.deletedAt),
+  holdExpiryIdx: index('hold_expiry_idx').on(table.holdExpiry),
 }));
 
 // Blackout Dates Table
@@ -118,6 +155,8 @@ export const blackoutDates = pgTable('blackout_dates', {
   date: text('date').notNull().unique(),
   reason: text('reason'),
   createdAt: timestamp('created_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+  deletedBy: text('deleted_by'),
 });
 
 // Minimum Stay Rules Table
@@ -128,6 +167,8 @@ export const minimumStayRules = pgTable('minimum_stay_rules', {
   minNights: integer('min_nights').notNull(),
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
+  deletedAt: timestamp('deleted_at'),
+  deletedBy: text('deleted_by'),
 });
 
 

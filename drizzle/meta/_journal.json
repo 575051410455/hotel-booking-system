@@ -22,6 +22,27 @@
       "when": 1765189242913,
       "tag": "0002_glorious_leader",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1765330661874,
+      "tag": "0003_slow_frank_castle",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1765337249491,
+      "tag": "0004_nosy_catseye",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1765363737905,
+      "tag": "0005_real_vulcan",
+      "breakpoints": true
     }
   ]
 }

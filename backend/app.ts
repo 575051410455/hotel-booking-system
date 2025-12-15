@@ -11,7 +11,12 @@ import usersRoutes from "./routes/users";
 import logsRoutes from "./routes/logs";
 import bookingRoutes from "./routes/booking";
 
+import roomTypeRoutes from "./routes/roomType";
+import companyRoutes from "./routes/companies";
+import {salesUsersRouter} from "./routes/sales-users";
 
+import { blackoutDateRoutes, minimumStayRuleRoutes } from "./routes/rules";
+import { availabilityRouter } from "./routes/Availability";
 
 
 const app = new Hono();
@@ -27,6 +32,7 @@ app.use('*', cors({
   origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:5173'],
   allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"],
   allowHeaders: ["Content-Type", "Authorization"],
+  exposeHeaders: ['Content-Length', 'X-Request-Id'],
   credentials: true,
 }))
 
@@ -36,7 +42,12 @@ const apiRoutes = app.basePath("/api")
     .route("/users", usersRoutes)
     .route("/logs", logsRoutes)
     .route('/bookings', bookingRoutes)
-
+    .route('/room-types', roomTypeRoutes)
+    .route('/companies', companyRoutes)
+    .route('/sales-users', salesUsersRouter)
+    .route('/rules/blackout-dates', blackoutDateRoutes)
+    .route('/rules/minimum-stay', minimumStayRuleRoutes)
+    .route('/availability', availabilityRouter);
 
 // Health check
 app.get("/", (c) => {

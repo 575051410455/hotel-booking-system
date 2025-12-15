@@ -1,6 +1,7 @@
-import { eq, and, or, gte, lte, like, desc, asc, sql, ne } from 'drizzle-orm';
+import { eq, and, or, gte, lte, like, desc, asc, sql, ne, isNull, lt } from 'drizzle-orm';
 import { db } from '../db';
 import { bookings, roomTypes, type Booking, type NewBooking } from '../db/schema';
+import { blackoutDateService, minimumStayRuleService } from './rules.service';
 
 import type {
   CreateBookingInput,
@@ -27,55 +28,177 @@ function generateId(): string {
 }
 
 export const bookingService = {
+  // Helper: Validate blackout dates
+  async validateBlackoutDates(checkIn: string, checkOut: string): Promise<void> {
+    const blackoutedDates: string[] = [];
+    const checkInDate = new Date(checkIn);
+    const checkOutDate = new Date(checkOut);
+
+    const currentDate = new Date(checkInDate);
+    while (currentDate < checkOutDate) {
+      const dateStr = currentDate.toISOString().split('T')[0] || '';
+      const isBlackedOut = await blackoutDateService.isBlackedOut(dateStr);
+      if (isBlackedOut) {
+        blackoutedDates.push(dateStr);
+      }
+      currentDate.setDate(currentDate.getDate() + 1);
+    }
+
+    if (blackoutedDates.length > 0) {
+      throw new Error(`Cannot book on blackout dates: ${blackoutedDates.join(', ')}`);
+    }
+  },
+
+  // Helper: Validate minimum stay rules
+  async validateMinimumStay(checkIn: string, checkOut: string): Promise<void> {
+    const checkInDate = new Date(checkIn);
+    const checkOutDate = new Date(checkOut);
+    const nights = Math.ceil((checkOutDate.getTime() - checkInDate.getTime()) / (1000 * 60 * 60 * 24));
+
+    const minNights = await minimumStayRuleService.getMinNightsForDate(checkIn);
+
+    if (nights < minNights) {
+      throw new Error(`Minimum stay is ${minNights} night(s) for this date. You are booking ${nights} night(s).`);
+    }
+  },
+
+  // Helper: Release expired holds
+  async releaseExpiredHolds(): Promise<void> {
+    const now = new Date();
+    await db
+      .update(bookings)
+      .set({
+        status: 'CANCELLED',
+        cancelReason: 'Hold expired (7 days)',
+        cancelledAt: now,
+        cancelledBy: 'SYSTEM',
+      })
+      .where(
+        and(
+          eq(bookings.status, 'PENDING'),
+          lt(bookings.holdExpiry, now),
+          isNull(bookings.deletedAt)
+        )
+      );
+  },
+
   // Create a new booking
   async createBooking(data: CreateBookingInput): Promise<Booking> {
-    const id = generateId();
-    const bookingId = generateBookingId();
-    const now = new Date();
-    const holdExpiry = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days hold
+    // Validate business rules BEFORE transaction
+    await this.validateBlackoutDates(data.checkIn, data.checkOut);
+    await this.validateMinimumStay(data.checkIn, data.checkOut);
 
-    // Check availability first
-    const available = await this.checkAvailability(data.checkIn, data.checkOut, data.roomType);
-    if (available < data.numberOfRooms) {
-      throw new Error(`Not enough rooms available. Only ${available} rooms available.`);
-    }
+    return await db.transaction(async (tx) => {
+      const id = generateId();
+      const bookingId = generateBookingId();
+      const now = new Date();
+      const holdExpiry = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    const newBooking: NewBooking = {
-      id,
-      bookingId,
-      customerName: data.customerName,
-      company: data.company,
-      saleOwner: data.saleOwner,
-      phone: data.phone,
-      email: data.email,
-      checkIn: data.checkIn,
-      checkOut: data.checkOut,
-      roomType: data.roomType,
-      numberOfRooms: data.numberOfRooms,
-      rate: data.rate.toString(),
-      paymentMethod: data.paymentMethod,
-      status: 'PENDING',
-      holdExpiry,
-      documents: data.documents,
-      notes: data.notes,
-    };
+      // Lock room type row (pessimistic locking)
+      const [roomType] = await tx
+        .select()
+        .from(roomTypes)
+        .where(
+          and(
+            eq(roomTypes.name, data.roomType),
+            isNull(roomTypes.deletedAt)
+          )
+        )
+        .for('update')
+        .limit(1);
 
-    const [created] = await db.insert(bookings).values(newBooking).returning();
+      if (!roomType) {
+        throw new Error('Room type not found');
+      }
 
-    // Add this check to satisfy TypeScript that created is Booking
-    if (!created) {
-      throw new Error('Failed to create booking');
-    }
+      // Check availability with locked data
+      const overlappingBookings = await tx
+        .select()
+        .from(bookings)
+        .where(
+          and(
+            eq(bookings.roomType, data.roomType),
+            isNull(bookings.deletedAt),
+            ne(bookings.status, 'CANCELLED'),
+            ne(bookings.status, 'VOID'),
+            sql`${bookings.checkIn} < ${data.checkOut}`,
+            sql`${bookings.checkOut} > ${data.checkIn}`
+          )
+        );
 
-    return created;
+      // Calculate minimum available rooms across all days
+      const checkInDate = new Date(data.checkIn);
+      const checkOutDate = new Date(data.checkOut);
+      let minAvailable = roomType.totalRooms;
+
+      const currentDate = new Date(checkInDate);
+      while (currentDate < checkOutDate) {
+        const dateStr = currentDate.toISOString().split('T')[0] || '';
+        const bookedRooms = overlappingBookings
+          .filter((b) => {
+            const bookingStart = new Date(b.checkIn);
+            const bookingEnd = new Date(b.checkOut);
+            const checkDate = new Date(dateStr);
+            return checkDate >= bookingStart && checkDate < bookingEnd;
+          })
+          .reduce((sum, b) => sum + b.numberOfRooms, 0);
+
+        const available = roomType.totalRooms - bookedRooms;
+        if (available < minAvailable) {
+          minAvailable = available;
+        }
+        currentDate.setDate(currentDate.getDate() + 1);
+      }
+
+      if (minAvailable < data.numberOfRooms) {
+        throw new Error(`Not enough rooms available. Only ${minAvailable} rooms available.`);
+      }
+
+      // Insert booking
+      const newBooking: NewBooking = {
+        id,
+        bookingId,
+        customerName: data.customerName,
+        company: data.company,
+        saleOwner: data.saleOwner,
+        phone: data.phone,
+        email: data.email,
+        checkIn: data.checkIn,
+        checkOut: data.checkOut,
+        roomType: data.roomType,
+        numberOfRooms: data.numberOfRooms,
+        rate: data.rate.toString(),
+        paymentMethod: data.paymentMethod,
+        status: 'PENDING',
+        holdExpiry,
+        documents: data.documents,
+        notes: data.notes,
+      };
+
+      const [created] = await tx.insert(bookings).values(newBooking).returning();
+
+      if (!created) {
+        throw new Error('Failed to create booking');
+      }
+
+      return created;
+    });
   },
 
   // Get a single booking by ID
   async getBooking(bookingId: string): Promise<Booking> {
+    // Release expired holds before querying
+    await this.releaseExpiredHolds();
+
     const [booking] = await db
       .select()
       .from(bookings)
-      .where(or(eq(bookings.id, bookingId), eq(bookings.bookingId, bookingId)))
+      .where(
+        and(
+          or(eq(bookings.id, bookingId), eq(bookings.bookingId, bookingId)),
+          isNull(bookings.deletedAt)
+        )
+      )
       .limit(1);
 
     if (!booking) {
@@ -91,7 +214,10 @@ export const bookingService = {
     page: number = 1,
     limit: number = 50
   ): Promise<{ data: Booking[]; pagination: { page: number; limit: number; total: number; totalPages: number } }> {
-    const conditions = [];
+    // Release expired holds before querying
+    await this.releaseExpiredHolds();
+
+    const conditions = [isNull(bookings.deletedAt)];
 
     if (filters.status) {
       conditions.push(eq(bookings.status, filters.status));
@@ -126,13 +252,15 @@ export const bookingService = {
       );
     }
 
-    const whereClause = conditions.length > 0 ? and(...conditions) : undefined;
+    const whereClause = and(...conditions);
 
     // Get total count
-    const [{ count }] = await db
+    const countResult = await db
       .select({ count: sql<number>`count(*)::int` })
       .from(bookings)
       .where(whereClause);
+
+    const count = countResult[0]?.count || 0;
 
     // Get paginated data
     const offset = (page - 1) * limit;
@@ -181,6 +309,10 @@ export const bookingService = {
       .where(eq(bookings.id, existing.id))
       .returning();
 
+    // Add this check to satisfy TypeScript that updated is Booking
+    if (!updated) {
+      throw new Error('Failed to update booking');
+    }
     return updated;
   },
 
@@ -196,7 +328,7 @@ export const bookingService = {
       .update(bookings)
       .set({
         status: 'CANCELLED',
-        cancelReason: data.reason,
+        cancelReason: data.cancelReason,
         cancelledBy: data.cancelledBy,
         cancelledAt: new Date(),
         cancelDocuments: data.cancelDocuments,
@@ -204,6 +336,10 @@ export const bookingService = {
       .where(eq(bookings.id, existing.id))
       .returning();
 
+      // Add this check to satisfy TypeScript that updated is Booking
+      if (!updated) {
+        throw new Error('Failed to cancel booking');
+      }
     return updated;
   },
 
@@ -224,6 +360,11 @@ export const bookingService = {
       .where(eq(bookings.id, existing.id))
       .returning();
 
+      // Add this check to satisfy TypeScript that updated is Booking
+      if (!updated) {
+        throw new Error('Failed to confirm booking');
+      }
+
     return updated;
   },
 
@@ -231,10 +372,18 @@ export const bookingService = {
   async amendBooking(bookingId: string, data: AmendBookingInput): Promise<Booking> {
     const existing = await this.getBooking(bookingId);
 
+    // Validate if dates are being changed
+    if (data.amendments.checkIn || data.amendments.checkOut) {
+      const newCheckIn = data.amendments.checkIn || existing.checkIn;
+      const newCheckOut = data.amendments.checkOut || existing.checkOut;
+      await this.validateBlackoutDates(newCheckIn, newCheckOut);
+      await this.validateMinimumStay(newCheckIn, newCheckOut);
+    }
+
     // Build changes log
     const changes: { field: string; before: any; after: any }[] = [];
 
-    for (const [key, value] of Object.entries(data.changes)) {
+    for (const [key, value] of Object.entries(data.amendments)) {
       if (value !== undefined && (existing as any)[key] !== value) {
         changes.push({
           field: key,
@@ -257,18 +406,18 @@ export const bookingService = {
 
     // Update booking
     const updateData: Partial<NewBooking> = {};
-    if (data.changes.customerName) updateData.customerName = data.changes.customerName;
-    if (data.changes.company) updateData.company = data.changes.company;
-    if (data.changes.saleOwner) updateData.saleOwner = data.changes.saleOwner;
-    if (data.changes.phone) updateData.phone = data.changes.phone;
-    if (data.changes.email) updateData.email = data.changes.email;
-    if (data.changes.checkIn) updateData.checkIn = data.changes.checkIn;
-    if (data.changes.checkOut) updateData.checkOut = data.changes.checkOut;
-    if (data.changes.roomType) updateData.roomType = data.changes.roomType;
-    if (data.changes.numberOfRooms) updateData.numberOfRooms = data.changes.numberOfRooms;
-    if (data.changes.rate) updateData.rate = data.changes.rate.toString();
-    if (data.changes.paymentMethod) updateData.paymentMethod = data.changes.paymentMethod;
-    if (data.changes.notes) updateData.notes = data.changes.notes;
+    if (data.amendments.customerName) updateData.customerName = data.amendments.customerName;
+    if (data.amendments.company) updateData.company = data.amendments.company;
+    if (data.amendments.saleOwner) updateData.saleOwner = data.amendments.saleOwner;
+    if (data.amendments.phone) updateData.phone = data.amendments.phone;
+    if (data.amendments.email) updateData.email = data.amendments.email;
+    if (data.amendments.checkIn) updateData.checkIn = data.amendments.checkIn;
+    if (data.amendments.checkOut) updateData.checkOut = data.amendments.checkOut;
+    if (data.amendments.roomType) updateData.roomType = data.amendments.roomType;
+    if (data.amendments.numberOfRooms) updateData.numberOfRooms = data.amendments.numberOfRooms;
+    if (data.amendments.rate) updateData.rate = data.amendments.rate.toString();
+    if (data.amendments.paymentMethod) updateData.paymentMethod = data.amendments.paymentMethod;
+    if (data.amendments.notes) updateData.notes = data.amendments.notes;
 
     const existingLogs = existing.amendmentLogs || [];
 
@@ -283,36 +432,55 @@ export const bookingService = {
       .where(eq(bookings.id, existing.id))
       .returning();
 
+      // Add this check to satisfy TypeScript that updated is Booking
+      if (!updated) {
+        throw new Error('Failed to amend booking');
+      }
     return updated;
   },
 
-  // Delete a booking
-  async deleteBooking(bookingId: string): Promise<void> {
+  // Delete a booking (soft delete)
+  async deleteBooking(bookingId: string, deletedBy: string): Promise<void> {
     const existing = await this.getBooking(bookingId);
 
-    await db.delete(bookings).where(eq(bookings.id, existing.id));
+    await db
+      .update(bookings)
+      .set({
+        deletedAt: new Date(),
+        deletedBy,
+      })
+      .where(eq(bookings.id, existing.id));
   },
 
   // Check room availability
   async checkAvailability(checkIn: string, checkOut: string, roomTypeName: string): Promise<number> {
+    // Release expired holds before checking
+    await this.releaseExpiredHolds();
+
     // Get room type info
     const [roomType] = await db
       .select()
       .from(roomTypes)
-      .where(eq(roomTypes.name, roomTypeName))
+      .where(
+        and(
+          eq(roomTypes.name, roomTypeName),
+          isNull(roomTypes.deletedAt)
+        )
+      )
       .limit(1);
 
     if (!roomType) {
       throw new Error('Room type not found');
     }
 
-    // Get overlapping bookings (excluding cancelled/void)
+    // Get overlapping bookings (excluding cancelled/void and deleted)
     const overlappingBookings = await db
       .select()
       .from(bookings)
       .where(
         and(
           eq(bookings.roomType, roomTypeName),
+          isNull(bookings.deletedAt),
           ne(bookings.status, 'CANCELLED'),
           ne(bookings.status, 'VOID'),
           // Booking overlaps if: booking.checkIn < checkOut AND booking.checkOut > checkIn
@@ -328,7 +496,7 @@ export const bookingService = {
 
     const currentDate = new Date(checkInDate);
     while (currentDate < checkOutDate) {
-      const dateStr = currentDate.toISOString().split('T')[0];
+      const dateStr = currentDate.toISOString().split('T')[0] || '';
 
       const bookedRooms = overlappingBookings
         .filter((b) => {

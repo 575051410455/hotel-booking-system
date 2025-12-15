@@ -43,6 +43,25 @@ bookingRoutes.get(
   }
 );
 
+// Check availability - Must be before /:bookingId to avoid route conflict
+bookingRoutes.post(
+  '/check-availability',
+  zValidator('json', checkAvailabilitySchema),
+  async (c) => {
+    try {
+      const data = c.req.valid('json');
+      const available = await bookingService.checkAvailability(
+        data.checkIn,
+        data.checkOut,
+        data.roomType
+      );
+      return c.json({ success: true, data: { available } });
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 400);
+    }
+  }
+);
+
 // Get single booking
 bookingRoutes.get('/:bookingId', async (c) => {
   try {
@@ -123,24 +142,5 @@ bookingRoutes.delete('/:bookingId', async (c) => {
     return c.json({ success: false, error: error.message }, 400);
   }
 });
-
-// Check availability
-bookingRoutes.post(
-  '/check-availability',
-  zValidator('json', checkAvailabilitySchema),
-  async (c) => {
-    try {
-      const data = c.req.valid('json');
-      const available = await bookingService.checkAvailability(
-        data.checkIn,
-        data.checkOut,
-        data.roomType
-      );
-      return c.json({ success: true, data: { available } });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
-    }
-  }
-);
 
 export default bookingRoutes;

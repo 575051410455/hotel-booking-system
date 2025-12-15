@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react';
 import { createFileRoute, Link } from '@tanstack/react-router';
 import { ArrowLeft, Upload, CheckCircle, AlertCircle, Hotel, Loader2 } from 'lucide-react';
-
-
+import { useAuthStore } from '@/hooks/auth';
 
 interface RoomType {
   id: string;
@@ -19,16 +18,22 @@ interface Company {
   phone: string;
 }
 
-interface SalesOwner {
+// Sales User จากตาราง users (role: sales, salescoordinator)
+interface SalesUser {
   id: string;
   name: string;
   email: string;
+  phone?: string;
+  role: 'sales' | 'salescoordinator';
+  department?: string;
+  isActive: boolean;
 }
 
 interface BookingPayload {
   customerName: string;
   company: string;
   saleOwner: string;
+  saleOwnerId?: string; // เก็บ ID ของ sales user ด้วย
   phone: string;
   email: string;
   checkIn: string;
@@ -68,17 +73,20 @@ export const Route = createFileRoute('/bookings/new')({
 })
 
 function BookRoomPage() {
+  // Auth
+  const { accessToken } = useAuthStore();
+
   // Data from API
   const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
   const [companies, setCompanies] = useState<Company[]>([]);
-  const [salesOwners, setSalesOwners] = useState<SalesOwner[]>([]);
+  const [salesUsers, setSalesUsers] = useState<SalesUser[]>([]); // เปลี่ยนจาก salesOwners
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Customer Info
   const [customerName, setCustomerName] = useState('');
   const [selectedCompany, setSelectedCompany] = useState('');
-  const [saleOwner, setSaleOwner] = useState('');
+  const [selectedSalesUserId, setSelectedSalesUserId] = useState(''); // เก็บ ID
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
 
@@ -101,15 +109,28 @@ function BookRoomPage() {
   const [bookingSummary, setBookingSummary] = useState<BookingSummary | null>(null);
   const [availabilityMessage, setAvailabilityMessage] = useState<string | null>(null);
 
+  // Helper function to get auth headers
+  const getAuthHeaders = (): HeadersInit => {
+    const headers: HeadersInit = {
+      'Content-Type': 'application/json',
+    };
+    if (accessToken) {
+      headers['Authorization'] = `Bearer ${accessToken}`;
+    }
+    return headers;
+  };
+
   // Fetch initial data
   useEffect(() => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        const [roomTypesRes, companiesRes, salesOwnersRes] = await Promise.all([
-          fetch(`${API_BASE_URL}/room-types`),
-          fetch(`${API_BASE_URL}/companies`),
-          fetch(`${API_BASE_URL}/sales-owners`),
+        const headers = getAuthHeaders();
+
+        const [roomTypesRes, companiesRes, salesUsersRes] = await Promise.all([
+          fetch(`${API_BASE_URL}/room-types`, { headers }),
+          fetch(`${API_BASE_URL}/companies`, { headers }),
+          fetch(`${API_BASE_URL}/sales-users`, { headers }), // เปลี่ยนจาก /sales-owners เป็น /sales-users
         ]);
 
         if (roomTypesRes.ok) {
@@ -122,9 +143,9 @@ function BookRoomPage() {
           setCompanies(companiesData.data || []);
         }
 
-        if (salesOwnersRes.ok) {
-          const salesOwnersData = await salesOwnersRes.json();
-          setSalesOwners(salesOwnersData.data || []);
+        if (salesUsersRes.ok) {
+          const salesUsersData = await salesUsersRes.json();
+          setSalesUsers(salesUsersData.data || []);
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -134,7 +155,7 @@ function BookRoomPage() {
     };
 
     fetchData();
-  }, []);
+  }, [accessToken]);
 
   // Auto-fill company info when selected
   useEffect(() => {
@@ -169,7 +190,7 @@ function BookRoomPage() {
       try {
         const response = await fetch(`${API_BASE_URL}/bookings/check-availability`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getAuthHeaders(),
           body: JSON.stringify({ checkIn, checkOut, roomType }),
         });
 
@@ -190,7 +211,12 @@ function BookRoomPage() {
     };
 
     checkAvailability();
-  }, [checkIn, checkOut, roomType, numberOfRooms]);
+  }, [checkIn, checkOut, roomType, numberOfRooms, accessToken]);
+
+  // Get selected sales user info
+  const getSelectedSalesUser = (): SalesUser | undefined => {
+    return salesUsers.find(u => u.id === selectedSalesUserId);
+  };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -205,7 +231,7 @@ function BookRoomPage() {
 
     // Validation
     if (!customerName.trim()) newErrors.push('กรุณากรอกชื่อ/บริษัท');
-    if (!saleOwner) newErrors.push('กรุณาเลือก Sale Owner');
+    if (!selectedSalesUserId) newErrors.push('กรุณาเลือก Sale Owner');
     if (!phone.trim()) newErrors.push('กรุณากรอกเบอร์ติดต่อ');
     if (!email.trim()) newErrors.push('กรุณากรอกอีเมล');
     if (!checkIn) newErrors.push('กรุณาเลือกวันเช็คอิน');
@@ -242,11 +268,16 @@ function BookRoomPage() {
     setIsSubmitting(true);
 
     try {
+      // Get selected sales user name
+      const selectedSalesUser = getSelectedSalesUser();
+      const saleOwnerName = selectedSalesUser?.name || '';
+
       // Create booking via API
       const bookingPayload: BookingPayload = {
         customerName,
         company: customerName,
-        saleOwner,
+        saleOwner: saleOwnerName, // ส่งชื่อ
+        saleOwnerId: selectedSalesUserId, // ส่ง ID ด้วย
         phone,
         email,
         checkIn,
@@ -261,14 +292,14 @@ function BookRoomPage() {
 
       const response = await fetch(`${API_BASE_URL}/bookings`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(bookingPayload),
       });
 
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'เกิดข้อผิดพลาดในการสร้างการจอง');
+        throw new Error(result.error || result.message || 'เกิดข้อผิดพลาดในการสร้างการจอง');
       }
 
       const booking = result.data;
@@ -281,6 +312,7 @@ function BookRoomPage() {
 
       setBookingSummary({
         ...booking,
+        saleOwner: saleOwnerName,
         nights,
         total,
       });
@@ -299,13 +331,13 @@ function BookRoomPage() {
     try {
       const response = await fetch(`${API_BASE_URL}/bookings/${bookingSummary.id}/confirm`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
       });
 
       const result = await response.json();
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'เกิดข้อผิดพลาดในการยืนยันการจอง');
+        throw new Error(result.error || result.message || 'เกิดข้อผิดพลาดในการยืนยันการจอง');
       }
 
       setBookingSummary({
@@ -461,7 +493,7 @@ function BookRoomPage() {
             <div className="flex gap-4">
               <Link
                 to="/dashboard"
-                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                className="flex-1 bg-gray-200 text-gray-700 py-3 rounded-lg hover:bg-gray-300 transition-colors font-medium text-center"
               >
                 กลับไปหน้าหลัก
               </Link>
@@ -555,17 +587,24 @@ function BookRoomPage() {
                   Sale Owner <span className="text-red-500">*</span>
                 </label>
                 <select
-                  value={saleOwner}
-                  onChange={(e) => setSaleOwner(e.target.value)}
+                  value={selectedSalesUserId}
+                  onChange={(e) => setSelectedSalesUserId(e.target.value)}
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
                 >
                   <option value="">-- เลือก Sale Owner --</option>
-                  {salesOwners.map((owner) => (
-                    <option key={owner.id} value={owner.name}>
-                      {owner.name}
+                  {salesUsers.map((user) => (
+                    <option key={user.id} value={user.id}>
+                      {user.name} {user.role === 'salescoordinator' ? '(Coordinator)' : ''}
                     </option>
                   ))}
                 </select>
+                {/* แสดงข้อมูล Sales User ที่เลือก */}
+                {selectedSalesUserId && getSelectedSalesUser() && (
+                  <p className="mt-1 text-xs text-gray-500">
+                    📧 {getSelectedSalesUser()?.email}
+                    {getSelectedSalesUser()?.phone && ` | 📞 ${getSelectedSalesUser()?.phone}`}
+                  </p>
+                )}
               </div>
 
               <div>
@@ -638,7 +677,8 @@ function BookRoomPage() {
                   <option value="">-- เลือกประเภทห้อง --</option>
                   {roomTypes.map((rt) => (
                     <option key={rt.id} value={rt.name}>
-                      {rt.name} (฿{parseFloat(rt.baseRate).toLocaleString()}/คืน)
+                      {rt.name} 
+                      {/* (฿{parseFloat(rt.baseRate).toLocaleString()}/คืน) */}
                     </option>
                   ))}
                 </select>

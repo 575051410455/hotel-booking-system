@@ -13,7 +13,10 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as BookingsIndexRouteImport } from './routes/bookings/index'
+import { Route as AvailabilityIndexRouteImport } from './routes/availability/index'
 import { Route as BookingsNewRouteImport } from './routes/bookings/new'
+import { Route as BookingsConfirmRouteImport } from './routes/bookings/confirm'
+import { Route as BookingsAmendRouteImport } from './routes/bookings/amend'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedRegisterRouteImport } from './routes/_authenticated/register'
@@ -39,9 +42,24 @@ const BookingsIndexRoute = BookingsIndexRouteImport.update({
   path: '/bookings/',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AvailabilityIndexRoute = AvailabilityIndexRouteImport.update({
+  id: '/availability/',
+  path: '/availability/',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const BookingsNewRoute = BookingsNewRouteImport.update({
   id: '/bookings/new',
   path: '/bookings/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookingsConfirmRoute = BookingsConfirmRouteImport.update({
+  id: '/bookings/confirm',
+  path: '/bookings/confirm',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const BookingsAmendRoute = BookingsAmendRouteImport.update({
+  id: '/bookings/amend',
+  path: '/bookings/amend',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedUsersRoute = AuthenticatedUsersRouteImport.update({
@@ -78,7 +96,10 @@ export interface FileRoutesByFullPath {
   '/register': typeof AuthenticatedRegisterRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/users': typeof AuthenticatedUsersRoute
+  '/bookings/amend': typeof BookingsAmendRoute
+  '/bookings/confirm': typeof BookingsConfirmRoute
   '/bookings/new': typeof BookingsNewRoute
+  '/availability': typeof AvailabilityIndexRoute
   '/bookings': typeof BookingsIndexRoute
 }
 export interface FileRoutesByTo {
@@ -89,7 +110,10 @@ export interface FileRoutesByTo {
   '/register': typeof AuthenticatedRegisterRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/users': typeof AuthenticatedUsersRoute
+  '/bookings/amend': typeof BookingsAmendRoute
+  '/bookings/confirm': typeof BookingsConfirmRoute
   '/bookings/new': typeof BookingsNewRoute
+  '/availability': typeof AvailabilityIndexRoute
   '/bookings': typeof BookingsIndexRoute
 }
 export interface FileRoutesById {
@@ -102,7 +126,10 @@ export interface FileRoutesById {
   '/_authenticated/register': typeof AuthenticatedRegisterRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
+  '/bookings/amend': typeof BookingsAmendRoute
+  '/bookings/confirm': typeof BookingsConfirmRoute
   '/bookings/new': typeof BookingsNewRoute
+  '/availability/': typeof AvailabilityIndexRoute
   '/bookings/': typeof BookingsIndexRoute
 }
 export interface FileRouteTypes {
@@ -115,7 +142,10 @@ export interface FileRouteTypes {
     | '/register'
     | '/settings'
     | '/users'
+    | '/bookings/amend'
+    | '/bookings/confirm'
     | '/bookings/new'
+    | '/availability'
     | '/bookings'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -126,7 +156,10 @@ export interface FileRouteTypes {
     | '/register'
     | '/settings'
     | '/users'
+    | '/bookings/amend'
+    | '/bookings/confirm'
     | '/bookings/new'
+    | '/availability'
     | '/bookings'
   id:
     | '__root__'
@@ -138,7 +171,10 @@ export interface FileRouteTypes {
     | '/_authenticated/register'
     | '/_authenticated/settings'
     | '/_authenticated/users'
+    | '/bookings/amend'
+    | '/bookings/confirm'
     | '/bookings/new'
+    | '/availability/'
     | '/bookings/'
   fileRoutesById: FileRoutesById
 }
@@ -146,7 +182,10 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
   LoginRoute: typeof LoginRoute
+  BookingsAmendRoute: typeof BookingsAmendRoute
+  BookingsConfirmRoute: typeof BookingsConfirmRoute
   BookingsNewRoute: typeof BookingsNewRoute
+  AvailabilityIndexRoute: typeof AvailabilityIndexRoute
   BookingsIndexRoute: typeof BookingsIndexRoute
 }
 
@@ -180,11 +219,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof BookingsIndexRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/availability/': {
+      id: '/availability/'
+      path: '/availability'
+      fullPath: '/availability'
+      preLoaderRoute: typeof AvailabilityIndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/bookings/new': {
       id: '/bookings/new'
       path: '/bookings/new'
       fullPath: '/bookings/new'
       preLoaderRoute: typeof BookingsNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bookings/confirm': {
+      id: '/bookings/confirm'
+      path: '/bookings/confirm'
+      fullPath: '/bookings/confirm'
+      preLoaderRoute: typeof BookingsConfirmRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/bookings/amend': {
+      id: '/bookings/amend'
+      path: '/bookings/amend'
+      fullPath: '/bookings/amend'
+      preLoaderRoute: typeof BookingsAmendRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_authenticated/users': {
@@ -249,7 +309,10 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AuthenticatedRoute: AuthenticatedRouteWithChildren,
   LoginRoute: LoginRoute,
+  BookingsAmendRoute: BookingsAmendRoute,
+  BookingsConfirmRoute: BookingsConfirmRoute,
   BookingsNewRoute: BookingsNewRoute,
+  AvailabilityIndexRoute: AvailabilityIndexRoute,
   BookingsIndexRoute: BookingsIndexRoute,
 }
 export const routeTree = rootRouteImport

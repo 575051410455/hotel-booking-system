@@ -1,4 +1,4 @@
-import { hc } from "hono/client";
+
 import { useAuthStore } from "@/hooks/auth";
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || "";
