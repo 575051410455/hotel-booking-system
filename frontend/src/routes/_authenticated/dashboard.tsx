@@ -17,7 +17,7 @@ import {
   Edit,
 } from "lucide-react";
 
-import { getBookings, roomTypes } from "@/data/mockData";
+import { ListBookingsQuery } from "@backend/types";
 import type { User } from "@/data/users";
 import { useAuthStore } from "@/hooks/auth";
 
@@ -58,6 +58,8 @@ import {
   CardTitle 
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { queryOptions, useQuery } from "@tanstack/react-query";
+import { bookingsApi, roomTypesApi } from "@/lib/api";
 
 
 type Menu = "check" | "book" | "confirm" | "amend" | "table";
@@ -106,9 +108,30 @@ function DashboardPage() {
   return <Dashboard onNavigate={handleNavigate} currentUser={currentUser} />;
 }
 
+const getBookings = (params: ListBookingsQuery = {}) => {
+  // ตัวอย่างข้อมูลการจอง
+  queryOptions({
+    queryKey: ["bookings", params],
+    queryFn: () => bookingsApi.list(params),
+    staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+export const getRoomTypesQueryOptions = queryOptions({
+  queryKey: ["room-types"],
+  queryFn: () => roomTypesApi.list(),
+  staleTime: 1000 * 60 * 10,
+});
+
+
 // ---------- UI หลักของ Dashboard ----------
 export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
-  const bookings = getBookings();
+  const { data: bookingsRes, isLoading: loadingBookings } = useQuery(getBookings());
+  const { data: roomTypesRes, isLoading: loadingRoomTypes } = useQuery(getRoomTypesQueryOptions);
+
+  const bookings = bookingsRes?.data || [];
+  const roomTypes = roomTypesRes?.data || [];
+  
   const COLORS = ["#fbbf24", "#34d399", "#f87171"];
 
   // Calculate statistics
