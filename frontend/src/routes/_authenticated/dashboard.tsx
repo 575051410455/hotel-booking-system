@@ -1,5 +1,5 @@
 // src/routes/dashboard.tsx
-import { useState, useMemo } from "react";
+import { useMemo } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 
 import {
@@ -7,17 +7,13 @@ import {
   Calendar,
   CheckCircle,
   Clock,
-  TrendingUp,
-  Users,
-  DollarSign,
-  BarChart3,
-  ArrowUpRight,
+
   Search,
   Table,
   Edit,
 } from "lucide-react";
 
-import { ListBookingsQuery } from "@backend/types";
+
 import type { User } from "@/data/users";
 import { useAuthStore } from "@/hooks/auth";
 
@@ -38,8 +34,6 @@ import {
 import { 
   IconUsers, 
   IconActivity, 
-  IconLogin, 
-  IconShield,
   IconTrendingUp,
   IconBuildingSkyscraper,
   IconCurrencyDollar,
@@ -58,8 +52,8 @@ import {
   CardTitle 
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { queryOptions, useQuery } from "@tanstack/react-query";
-import { bookingsApi, roomTypesApi } from "@/lib/api";
+import { useQuery, queryOptions } from "@tanstack/react-query";
+import { bookingsApi, getBookingsQueryOptions, getRoomTypesQueryOptions, roomTypesApi } from "@/lib/api";
 
 
 type Menu = "check" | "book" | "confirm" | "amend" | "table";
@@ -108,33 +102,19 @@ function DashboardPage() {
   return <Dashboard onNavigate={handleNavigate} currentUser={currentUser} />;
 }
 
-const getBookings = (params: ListBookingsQuery = {}) => {
-  // ตัวอย่างข้อมูลการจอง
-  queryOptions({
-    queryKey: ["bookings", params],
-    queryFn: () => bookingsApi.list(params),
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  })
-}
-
-export const getRoomTypesQueryOptions = queryOptions({
-  queryKey: ["room-types"],
-  queryFn: () => roomTypesApi.list(),
-  staleTime: 1000 * 60 * 10,
-});
 
 
 // ---------- UI หลักของ Dashboard ----------
 export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
-  const { data: bookingsRes, isLoading: loadingBookings } = useQuery(getBookings());
+
+   const { data: bookingsRes, isLoading: loadingBookings } = useQuery(getBookingsQueryOptions());
   const { data: roomTypesRes, isLoading: loadingRoomTypes } = useQuery(getRoomTypesQueryOptions);
 
   const bookings = bookingsRes?.data || [];
   const roomTypes = roomTypesRes?.data || [];
-  
+
   const COLORS = ["#fbbf24", "#34d399", "#f87171"];
 
-  // Calculate statistics
   const stats = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -146,19 +126,16 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
     ).length;
     const total = bookings.length;
 
-    // Calculate revenue (only CONFIRMED)
     const revenue = bookings
       .filter((b) => b.status === "CONFIRMED")
       .reduce((sum, b) => {
         const nights = Math.ceil(
-          (new Date(b.checkOut).getTime() -
-            new Date(b.checkIn).getTime()) /
+          (new Date(b.checkOut).getTime() - new Date(b.checkIn).getTime()) /
             (1000 * 60 * 60 * 24)
         );
         return sum + b.rate * b.numberOfRooms * nights;
       }, 0);
 
-    // Today's check-ins
     const todayCheckIns = bookings.filter((b) => {
       const checkIn = new Date(b.checkIn);
       checkIn.setHours(0, 0, 0, 0);
@@ -168,18 +145,13 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
       );
     }).length;
 
-    // Today's check-outs
     const todayCheckOuts = bookings.filter((b) => {
       const checkOut = new Date(b.checkOut);
       checkOut.setHours(0, 0, 0, 0);
       return checkOut.getTime() === today.getTime() && b.status === "CONFIRMED";
     }).length;
 
-    // Calculate occupancy
-    const totalRooms = roomTypes.reduce(
-      (sum, rt) => sum + rt.totalRooms,
-      0
-    );
+    const totalRooms = roomTypes.reduce((sum, rt) => sum + rt.totalRooms, 0);
     const occupiedRooms = bookings
       .filter((b) => {
         if (b.status !== "CONFIRMED" && b.status !== "PENDING") return false;
@@ -190,9 +162,7 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
       .reduce((sum, b) => sum + b.numberOfRooms, 0);
 
     const occupancyRate =
-      totalRooms > 0
-        ? ((occupiedRooms / totalRooms) * 100).toFixed(1)
-        : "0";
+      totalRooms > 0 ? ((occupiedRooms / totalRooms) * 100).toFixed(1) : "0";
 
     return {
       total,
@@ -206,7 +176,7 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
       occupiedRooms,
       totalRooms,
     };
-  }, [bookings]);
+  }, [bookings, roomTypes]); // เพิ่ม roomTypes ใน dependencies
 
   // Room type distribution
   const roomTypeData = useMemo(() => {

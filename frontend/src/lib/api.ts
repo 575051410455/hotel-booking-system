@@ -371,14 +371,17 @@ export interface CancelBookingPayload {
 }
 
 export interface ListBookingsParams {
-  page?: number;
-  limit?: number;
-  search?: string;
-  status?: string;
-  roomType?: string;
+  status?: "PENDING" | "CONFIRMED" | "CANCELLED" | "VOID";
   checkInFrom?: string;
   checkInTo?: string;
+  checkIn?: string;
+  checkOut?: string;
+  search?: string;
+  company?: string;
+  roomType?: string;
   saleOwner?: string;
+  page?: number;
+  limit?: number;
 }
 
 export interface CheckAvailabilityPayload {
@@ -435,22 +438,13 @@ async function apiRequest<T>(
 // ============ Bookings API ============
 
 export const bookingsApi = {
-  list: async (params: ListBookingsParams = {}): Promise<ApiResponse<Booking[]>> => {
+  list: (params: ListBookingsParams = {}) => {
     const searchParams = new URLSearchParams();
-
-    if (params.page) searchParams.set('page', String(params.page));
-    if (params.limit) searchParams.set('limit', String(params.limit));
-    if (params.search) searchParams.set('search', params.search);
-    if (params.status) searchParams.set('status', params.status);
-    if (params.roomType) searchParams.set('roomType', params.roomType);
-    if (params.checkInFrom) searchParams.set('checkInFrom', params.checkInFrom);
-    if (params.checkInTo) searchParams.set('checkInTo', params.checkInTo);
-    if (params.saleOwner) searchParams.set('saleOwner', params.saleOwner);
-
-    const queryString = searchParams.toString();
-    const endpoint = queryString ? `/bookings?${queryString}` : '/bookings';
-
-    return apiRequest<Booking[]>(endpoint);
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) searchParams.set(key, String(value));
+    });
+    const query = searchParams.toString();
+    return apiRequest<Booking[]>(query ? `/bookings?${query}` : "/bookings");
   },
 
   get: async (bookingId: string): Promise<ApiResponse<Booking>> => {
@@ -682,6 +676,54 @@ export const minimumStayRulesApi = {
     });
   },
 };
+
+
+
+// ============ Query Options ============
+
+export const getBookingsQueryOptions = (params: ListBookingsParams = {}) =>
+  queryOptions({
+    queryKey: ["bookings", params],
+    queryFn: () => bookingsApi.list(params),
+    staleTime: 1000 * 60 * 5,
+  });
+
+export const getBookingQueryOptions = (id: string) =>
+  queryOptions({
+    queryKey: ["booking", id],
+    queryFn: () => bookingsApi.get(id),
+    enabled: !!id,
+  });
+
+export const getRoomTypesQueryOptions = queryOptions({
+  queryKey: ["room-types"],
+  queryFn: () => roomTypesApi.list(),
+  staleTime: 1000 * 60 * 10,
+});
+
+export const getCompaniesQueryOptions = queryOptions({
+  queryKey: ["companies"],
+  queryFn: () => companiesApi.list(),
+  staleTime: 1000 * 60 * 10,
+});
+
+export const getSalesOwnersQueryOptions = queryOptions({
+  queryKey: ["sales-owners"],
+  queryFn: () => salesOwnersApi.list(),
+  staleTime: 1000 * 60 * 10,
+});
+
+export const getBlackoutDatesQueryOptions = queryOptions({
+  queryKey: ["blackout-dates"],
+  queryFn: () => blackoutDatesApi.list(),
+  staleTime: 1000 * 60 * 10,
+});
+
+export const getMinimumStayRulesQueryOptions = queryOptions({
+  queryKey: ["minimum-stay-rules"],
+  queryFn: () => minimumStayRulesApi.list(),
+  staleTime: 1000 * 60 * 10,
+});
 
 // ============ Export All ============
 

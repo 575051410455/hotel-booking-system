@@ -76,7 +76,15 @@ bookingRoutes.get('/:bookingId', async (c) => {
 // Update booking
 bookingRoutes.patch(
   '/:bookingId',
-  zValidator('json', updateBookingSchema),
+  zValidator('json', updateBookingSchema, (result, c) => {
+    if (!result.success) {
+      // Rereturn validation errors
+      return c.json({ 
+        success: false,
+        errors: 'Validation failed',  
+      },  400);
+    }
+  }),
   async (c) => {
     try {
       const bookingId = c.req.param('bookingId');

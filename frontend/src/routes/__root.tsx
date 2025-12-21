@@ -2,6 +2,7 @@
 import { Outlet, createRootRoute, useNavigate } from "@tanstack/react-router";
 import { Header } from "@/components/Header";
 import { useAuthStore } from "@/hooks/auth";
+import { Toaster, toast } from "sonner";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -16,6 +17,7 @@ function RootLayout() {
 
   const handleLogout = () => {
     logout();
+    toast.success("ออกจากระบบเรียบร้อยแล้ว"); // จะเด้งขึ้นมาแล้วครับ
     navigate({ to: "/login" });
   };
 
@@ -32,6 +34,8 @@ function RootLayout() {
     return (
       <div className="min-h-screen bg-gray-50">
         <Outlet />
+        {/* 2. ใส่ Toaster ไว้ตรงนี้ด้วย เพื่อให้หน้า Login ก็แจ้งเตือนได้ */}
+        <Toaster richColors position="top-right" />
       </div>
     );
   }
@@ -49,6 +53,8 @@ function RootLayout() {
       <main className="flex-1">
         <Outlet />
       </main>
+      {/* 3. ใส่ Toaster ไว้ท้ายสุดของ Layout หลัก */}
+      <Toaster richColors position="top-right" />
     </div>
   );
 }
