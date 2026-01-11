@@ -1,141 +1,84 @@
-"use client"
-
 import * as React from "react"
 import { Link } from "@tanstack/react-router"
 import {
-  IconChartBar,
-  IconDashboard,
-  IconFileAi,
-  IconFolder,
-  IconListDetails,
-  IconSettings,
-  IconUsers,
-  IconAlertCircle,
-} from "@tabler/icons-react"
-import { 
-  LayoutDashboard, 
-  CheckSquare, 
-} from 'lucide-react';
-
-import { NavMain } from "@/components/layout/nav-main"
-import { NavSecondary } from "@/components/layout/nav-secondary"
-
-import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupLabel,
+  SidebarGroupContent,
   SidebarHeader,
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarRail,
 } from "@/components/ui/sidebar"
-import { useAuth } from "@/hooks/useAuth";
+import { Separator } from "@/components/ui/separator"
 
-
-const data = {
-  user: {
-    name: "shadcn",
-    email: "m@example.com",
-    avatar: "/avatars/shadcn.jpg",
+const nav = [
+  {
+    label: "Main",
+    items: [
+      { title: "Dashboard", to: "/_authenticated/dashboard" },
+      { title: "Users", to: "/_authenticated/users" },
+      { title: "Settings", to: "/_authenticated/settings" },
+    ],
   },
-  navAdmin: [
-    {
-      title: "Dashboard",
-      url: "/",
-      icon: IconDashboard,
-    },
-    {
-      title: "Tasks",
-      url: "/tasks",
-      icon: IconListDetails,
-    },
-    {
-      title: "Report Issue",
-      url: "/report-issue",
-      icon: IconAlertCircle,
-    },
-    {
-      title: "Analytics",
-      url: "/analytics",
-      icon: IconChartBar,
-    },
-    {
-      title: "Projects",
-      url: "/projects",
-      icon: IconFolder,
-    },
-    {
-      title: "Team",
-      url: "/team",
-      icon: IconUsers,
-    },
-  ],
-  navUser: [
-    {
-      title: "Dashboard",
-      icon: LayoutDashboard,
-      isActive: true,
-      url: "/",
-    },
-    {
-      title: "All Tasks",
-      icon: CheckSquare,
-      url: "/tasks",
-    },
-    {
-      title: "Report Issue",
-      icon: IconFileAi,
-      url: "#",
-      items: [
-        {
-          title: "Active Proposals",
-          url: "#",
-        },
-        {
-          title: "Archived",
-          url: "#",
-        },
-      ],
-    },
-  ],
-  navSecondary: [
-    {
-      title: "Settings",
-      url: "/settings",
-      icon: IconSettings,
-    },
-  ],
-
-}
+  {
+    label: "Bookings",
+    items: [
+      { title: "Bookings", to: "/bookings" },
+      { title: "New Booking", to: "/bookings/new" },
+      { title: "Confirm", to: "/bookings/confirm" },
+    ],
+  },
+] as const
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
-  const { user } = useAuth();
-
-  // Get navigattion item base on user role
-  const navItems = user?.role === 'admin'
-      ? data.navAdmin
-      : data.navUser
-  
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
-      <SidebarHeader>
-        <SidebarMenu>
-          <SidebarMenuItem>
-            <SidebarMenuButton
-              asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5"
-            >
-              <Link to="/">
-                <img src="/images/logoeasy.png" className="w-5 h-5" alt="Logo" />
-                <span className="text-base font-semibold">Easy Connect Equipment</span>
-              </Link>
-            </SidebarMenuButton>
-          </SidebarMenuItem>
-        </SidebarMenu>
+ <Sidebar collapsible="icon" {...props}>
+      <SidebarHeader className="px-3 py-3">
+        <div className="text-sm font-semibold leading-none">
+          HOTEL BOOKING
+        </div>
+        <div className="text-xs text-muted-foreground">
+          Admin Panel
+        </div>
       </SidebarHeader>
+
+      <Separator />
+
       <SidebarContent>
-        <NavMain items={navItems} />
-        <NavSecondary items={data.navSecondary} className="mt-auto" />
+        {nav.map((group) => (
+          <SidebarGroup key={group.label}>
+            <SidebarGroupLabel>{group.label}</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {group.items.map((item) => (
+                  <SidebarMenuItem key={item.title}>
+                    <SidebarMenuButton asChild>
+                      <Link
+                        to={item.to as any}
+                        activeProps={{ className: "font-semibold" }}
+                      >
+                        {item.title}
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                ))}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ))}
       </SidebarContent>
+
+      <Separator />
+
+      <SidebarFooter className="p-3 text-xs text-muted-foreground">
+        v1.0.0
+      </SidebarFooter>
+
+      <SidebarRail />
     </Sidebar>
   )
 }

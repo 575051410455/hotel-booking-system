@@ -6,9 +6,9 @@
       "@/*": [
         "./src/*"
       ],
-      "@backend/*" : [
+      "@backend/*": [
         "../backend/*"
-      ]
+      ],
     },
     // ...
     "tsBuildInfoFile": "./node_modules/.tmp/tsconfig.app.tsbuildinfo",
@@ -16,6 +16,7 @@
     "useDefineForClassFields": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "module": "ESNext",
+    "types": ["vite/client"],
     "skipLibCheck": true,
 
     /* Bundler mode */

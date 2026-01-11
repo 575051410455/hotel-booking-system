@@ -9,311 +9,129 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
-import { Route as IndexRouteImport } from './routes/index'
-import { Route as BookingsIndexRouteImport } from './routes/bookings/index'
-import { Route as AvailabilityIndexRouteImport } from './routes/availability/index'
-import { Route as BookingsNewRouteImport } from './routes/bookings/new'
-import { Route as BookingsConfirmRouteImport } from './routes/bookings/confirm'
-import { Route as BookingsAmendRouteImport } from './routes/bookings/amend'
 import { Route as AuthenticatedUsersRouteImport } from './routes/_authenticated/users'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
-import { Route as AuthenticatedRegisterRouteImport } from './routes/_authenticated/register'
 import { Route as AuthenticatedProfileRouteImport } from './routes/_authenticated/profile'
 import { Route as AuthenticatedDashboardRouteImport } from './routes/_authenticated/dashboard'
+import { Route as AuthenticatedBookingsLayoutRouteImport } from './routes/_authenticated/bookings/_layout'
 
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AuthenticatedRoute = AuthenticatedRouteImport.update({
-  id: '/_authenticated',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BookingsIndexRoute = BookingsIndexRouteImport.update({
-  id: '/bookings/',
-  path: '/bookings/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const AvailabilityIndexRoute = AvailabilityIndexRouteImport.update({
-  id: '/availability/',
-  path: '/availability/',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BookingsNewRoute = BookingsNewRouteImport.update({
-  id: '/bookings/new',
-  path: '/bookings/new',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BookingsConfirmRoute = BookingsConfirmRouteImport.update({
-  id: '/bookings/confirm',
-  path: '/bookings/confirm',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const BookingsAmendRoute = BookingsAmendRouteImport.update({
-  id: '/bookings/amend',
-  path: '/bookings/amend',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const AuthenticatedUsersRoute = AuthenticatedUsersRouteImport.update({
-  id: '/users',
+  id: '/_authenticated/users',
   path: '/users',
-  getParentRoute: () => AuthenticatedRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
-  id: '/settings',
+  id: '/_authenticated/settings',
   path: '/settings',
-  getParentRoute: () => AuthenticatedRoute,
-} as any)
-const AuthenticatedRegisterRoute = AuthenticatedRegisterRouteImport.update({
-  id: '/register',
-  path: '/register',
-  getParentRoute: () => AuthenticatedRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedProfileRoute = AuthenticatedProfileRouteImport.update({
-  id: '/profile',
+  id: '/_authenticated/profile',
   path: '/profile',
-  getParentRoute: () => AuthenticatedRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
 const AuthenticatedDashboardRoute = AuthenticatedDashboardRouteImport.update({
-  id: '/dashboard',
+  id: '/_authenticated/dashboard',
   path: '/dashboard',
-  getParentRoute: () => AuthenticatedRoute,
+  getParentRoute: () => rootRouteImport,
 } as any)
+const AuthenticatedBookingsLayoutRoute =
+  AuthenticatedBookingsLayoutRouteImport.update({
+    id: '/_authenticated/bookings/_layout',
+    path: '/bookings',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 
 export interface FileRoutesByFullPath {
-  '/': typeof IndexRoute
-  '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
-  '/register': typeof AuthenticatedRegisterRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/users': typeof AuthenticatedUsersRoute
-  '/bookings/amend': typeof BookingsAmendRoute
-  '/bookings/confirm': typeof BookingsConfirmRoute
-  '/bookings/new': typeof BookingsNewRoute
-  '/availability': typeof AvailabilityIndexRoute
-  '/bookings': typeof BookingsIndexRoute
+  '/bookings': typeof AuthenticatedBookingsLayoutRoute
 }
 export interface FileRoutesByTo {
-  '/': typeof IndexRoute
-  '/login': typeof LoginRoute
   '/dashboard': typeof AuthenticatedDashboardRoute
   '/profile': typeof AuthenticatedProfileRoute
-  '/register': typeof AuthenticatedRegisterRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/users': typeof AuthenticatedUsersRoute
-  '/bookings/amend': typeof BookingsAmendRoute
-  '/bookings/confirm': typeof BookingsConfirmRoute
-  '/bookings/new': typeof BookingsNewRoute
-  '/availability': typeof AvailabilityIndexRoute
-  '/bookings': typeof BookingsIndexRoute
+  '/bookings': typeof AuthenticatedBookingsLayoutRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
-  '/': typeof IndexRoute
-  '/_authenticated': typeof AuthenticatedRouteWithChildren
-  '/login': typeof LoginRoute
   '/_authenticated/dashboard': typeof AuthenticatedDashboardRoute
   '/_authenticated/profile': typeof AuthenticatedProfileRoute
-  '/_authenticated/register': typeof AuthenticatedRegisterRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/users': typeof AuthenticatedUsersRoute
-  '/bookings/amend': typeof BookingsAmendRoute
-  '/bookings/confirm': typeof BookingsConfirmRoute
-  '/bookings/new': typeof BookingsNewRoute
-  '/availability/': typeof AvailabilityIndexRoute
-  '/bookings/': typeof BookingsIndexRoute
+  '/_authenticated/bookings/_layout': typeof AuthenticatedBookingsLayoutRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths:
-    | '/'
-    | '/login'
-    | '/dashboard'
-    | '/profile'
-    | '/register'
-    | '/settings'
-    | '/users'
-    | '/bookings/amend'
-    | '/bookings/confirm'
-    | '/bookings/new'
-    | '/availability'
-    | '/bookings'
+  fullPaths: '/dashboard' | '/profile' | '/settings' | '/users' | '/bookings'
   fileRoutesByTo: FileRoutesByTo
-  to:
-    | '/'
-    | '/login'
-    | '/dashboard'
-    | '/profile'
-    | '/register'
-    | '/settings'
-    | '/users'
-    | '/bookings/amend'
-    | '/bookings/confirm'
-    | '/bookings/new'
-    | '/availability'
-    | '/bookings'
+  to: '/dashboard' | '/profile' | '/settings' | '/users' | '/bookings'
   id:
     | '__root__'
-    | '/'
-    | '/_authenticated'
-    | '/login'
     | '/_authenticated/dashboard'
     | '/_authenticated/profile'
-    | '/_authenticated/register'
     | '/_authenticated/settings'
     | '/_authenticated/users'
-    | '/bookings/amend'
-    | '/bookings/confirm'
-    | '/bookings/new'
-    | '/availability/'
-    | '/bookings/'
+    | '/_authenticated/bookings/_layout'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
-  IndexRoute: typeof IndexRoute
-  AuthenticatedRoute: typeof AuthenticatedRouteWithChildren
-  LoginRoute: typeof LoginRoute
-  BookingsAmendRoute: typeof BookingsAmendRoute
-  BookingsConfirmRoute: typeof BookingsConfirmRoute
-  BookingsNewRoute: typeof BookingsNewRoute
-  AvailabilityIndexRoute: typeof AvailabilityIndexRoute
-  BookingsIndexRoute: typeof BookingsIndexRoute
+  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
+  AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
+  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
+  AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
+  AuthenticatedBookingsLayoutRoute: typeof AuthenticatedBookingsLayoutRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/_authenticated': {
-      id: '/_authenticated'
-      path: ''
-      fullPath: ''
-      preLoaderRoute: typeof AuthenticatedRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bookings/': {
-      id: '/bookings/'
-      path: '/bookings'
-      fullPath: '/bookings'
-      preLoaderRoute: typeof BookingsIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/availability/': {
-      id: '/availability/'
-      path: '/availability'
-      fullPath: '/availability'
-      preLoaderRoute: typeof AvailabilityIndexRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bookings/new': {
-      id: '/bookings/new'
-      path: '/bookings/new'
-      fullPath: '/bookings/new'
-      preLoaderRoute: typeof BookingsNewRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bookings/confirm': {
-      id: '/bookings/confirm'
-      path: '/bookings/confirm'
-      fullPath: '/bookings/confirm'
-      preLoaderRoute: typeof BookingsConfirmRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/bookings/amend': {
-      id: '/bookings/amend'
-      path: '/bookings/amend'
-      fullPath: '/bookings/amend'
-      preLoaderRoute: typeof BookingsAmendRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/_authenticated/users': {
       id: '/_authenticated/users'
       path: '/users'
       fullPath: '/users'
       preLoaderRoute: typeof AuthenticatedUsersRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/settings': {
       id: '/_authenticated/settings'
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
-      parentRoute: typeof AuthenticatedRoute
-    }
-    '/_authenticated/register': {
-      id: '/_authenticated/register'
-      path: '/register'
-      fullPath: '/register'
-      preLoaderRoute: typeof AuthenticatedRegisterRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/profile': {
       id: '/_authenticated/profile'
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof AuthenticatedProfileRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof rootRouteImport
     }
     '/_authenticated/dashboard': {
       id: '/_authenticated/dashboard'
       path: '/dashboard'
       fullPath: '/dashboard'
       preLoaderRoute: typeof AuthenticatedDashboardRouteImport
-      parentRoute: typeof AuthenticatedRoute
+      parentRoute: typeof rootRouteImport
+    }
+    '/_authenticated/bookings/_layout': {
+      id: '/_authenticated/bookings/_layout'
+      path: '/bookings'
+      fullPath: '/bookings'
+      preLoaderRoute: typeof AuthenticatedBookingsLayoutRouteImport
+      parentRoute: typeof rootRouteImport
     }
   }
 }
 
-interface AuthenticatedRouteChildren {
-  AuthenticatedDashboardRoute: typeof AuthenticatedDashboardRoute
-  AuthenticatedProfileRoute: typeof AuthenticatedProfileRoute
-  AuthenticatedRegisterRoute: typeof AuthenticatedRegisterRoute
-  AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
-  AuthenticatedUsersRoute: typeof AuthenticatedUsersRoute
-}
-
-const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
+const rootRouteChildren: RootRouteChildren = {
   AuthenticatedDashboardRoute: AuthenticatedDashboardRoute,
   AuthenticatedProfileRoute: AuthenticatedProfileRoute,
-  AuthenticatedRegisterRoute: AuthenticatedRegisterRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedUsersRoute: AuthenticatedUsersRoute,
-}
-
-const AuthenticatedRouteWithChildren = AuthenticatedRoute._addFileChildren(
-  AuthenticatedRouteChildren,
-)
-
-const rootRouteChildren: RootRouteChildren = {
-  IndexRoute: IndexRoute,
-  AuthenticatedRoute: AuthenticatedRouteWithChildren,
-  LoginRoute: LoginRoute,
-  BookingsAmendRoute: BookingsAmendRoute,
-  BookingsConfirmRoute: BookingsConfirmRoute,
-  BookingsNewRoute: BookingsNewRoute,
-  AvailabilityIndexRoute: AvailabilityIndexRoute,
-  BookingsIndexRoute: BookingsIndexRoute,
+  AuthenticatedBookingsLayoutRoute: AuthenticatedBookingsLayoutRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
