@@ -1,8 +1,8 @@
-// src/routes/__root.tsx
 import { Outlet, createRootRoute, useNavigate } from "@tanstack/react-router";
-import { Header } from "@/components/Header";
 import { useAuthStore } from "@/hooks/auth";
 import { Toaster, toast } from "sonner";
+import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
+import { AppHeader } from "@/components/app-header";
 
 export const Route = createRootRoute({
   component: RootLayout,
@@ -17,17 +17,16 @@ function RootLayout() {
 
   const handleLogout = () => {
     logout();
-    toast.success("ออกจากระบบเรียบร้อยแล้ว"); // จะเด้งขึ้นมาแล้วครับ
+    toast.success("Logged Out"); // จะเด้งขึ้นมาแล้วครับ
     navigate({ to: "/login" });
   };
-
   const handleViewLogs = () => {
     navigate({ to: "/logs" }); // ถ้ายังไม่มีหน้า /logs ก็เปลี่ยน path ได้เลย
   };
 
-    const handleViewUsers = () => {
-    navigate({ to: "/users" }); // ถ้ายังไม่มีหน้า /logs ก็เปลี่ยน path ได้เลย
-  };
+  const handleViewUsers = () => {
+    navigate({ to: "/users" });
+  }
 
   // ถ้ายังไม่ล็อกอิน → ไม่ต้องมี Header
   if (!isAuthenticated || !user) {
@@ -42,19 +41,13 @@ function RootLayout() {
 
   // ล็อกอินแล้ว → แสดง Header + เนื้อหาแต่ละหน้า
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50">
-      <Header
-        user={user}
-        onLogout={handleLogout}
-        onViewLogs={user.role === "admin" ? handleViewLogs : undefined}
-        onViewUsers={user.role === "admin" ? handleViewUsers : undefined}
-      />
-
-      <main className="flex-1">
+    <SidebarProvider>
+      <SidebarInset>
+        <AppHeader user={user} onLogout={handleLogout} onViewLogs={handleViewLogs} onViewUser={handleViewUsers} />
         <Outlet />
-      </main>
+      </SidebarInset>
       {/* 3. ใส่ Toaster ไว้ท้ายสุดของ Layout หลัก */}
       <Toaster richColors position="top-right" />
-    </div>
+    </SidebarProvider>
   );
 }
