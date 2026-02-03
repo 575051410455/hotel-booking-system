@@ -2,10 +2,6 @@ import { createFileRoute, Outlet, redirect } from "@tanstack/react-router";
 
 import { useAuthStore } from "@/hooks/auth";
 
-
-
-
-
 export const Route = createFileRoute("/_authenticated")({
   beforeLoad: () => {
     const { isAuthenticated } = useAuthStore.getState();

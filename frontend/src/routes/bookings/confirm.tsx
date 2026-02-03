@@ -77,7 +77,11 @@ function ConfirmRoomPage() {
         throw new Error(data.message || 'เกิดข้อผิดพลาดในการดึงข้อมูล');
       }
 
-      setBookings(data.data || []);
+      // Handle different response structures (data.data might be { bookings: [] } or [])
+      const bookingsData = Array.isArray(data.data)
+        ? data.data
+        : (data.data?.bookings || []);
+      setBookings(bookingsData);
     } catch (err: any) {
       setError(err.message || 'เกิดข้อผิดพลาดในการดึงข้อมูล');
       setBookings([]);

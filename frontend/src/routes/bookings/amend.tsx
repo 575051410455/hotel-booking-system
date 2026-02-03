@@ -12,13 +12,14 @@ import {
   Loader2,
   X
 } from 'lucide-react';
-import { 
-  bookingsApi, 
-  roomTypesApi, 
-  salesOwnersApi,
-  type Booking, 
-  type RoomType, 
-  type SalesOwner 
+import { useQuery } from '@tanstack/react-query';
+import {
+  roomTypesQueryOptions,
+  salesUsersQueryOptions,
+  api,
+  authHeaders,
+  getAuthToken,
+  type Booking,
 } from '@/lib/api';
 import { useAuthStore } from '@/hooks/auth';
 
@@ -29,7 +30,6 @@ interface AmendLog {
   before: any;
   after: any;
 }
-
 
 const paymentMethods = [
   'เงินสด',
@@ -50,10 +50,13 @@ function AmendBooking() {
   // Auth - ต้องอยู่บนสุดก่อน hooks อื่นๆ
   const { user: currentUser, accessToken } = useAuthStore();
 
-  // Data from API
-  const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
-  const [salesOwners, setSalesOwners] = useState<SalesOwner[]>([]);
-  const [isLoadingData, setIsLoadingData] = useState(true);
+  // Data from API using TanStack Query
+  const { data: roomTypesRes, isLoading: isLoadingRoomTypes } = useQuery(roomTypesQueryOptions());
+  const { data: salesOwnersRes, isLoading: isLoadingSalesOwners } = useQuery(salesUsersQueryOptions());
+
+  const roomTypes = roomTypesRes?.data || [];
+  const salesOwners = salesOwnersRes?.data || [];
+  const isLoadingData = isLoadingRoomTypes || isLoadingSalesOwners;
 
   // Search state
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -70,38 +73,6 @@ function AmendBooking() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  // ============ ALL HOOKS MUST BE ABOVE THIS LINE ============
-  
-  // Fetch reference data on mount
-  useEffect(() => {
-    const fetchData = async () => {
-      // Skip fetching if no user
-      if (!currentUser) return;
-      
-      setIsLoadingData(true);
-      try {
-        const [roomTypesRes, salesOwnersRes] = await Promise.all([
-          roomTypesApi.list(),
-          salesOwnersApi.list(),
-        ]);
-
-        if (roomTypesRes.success && roomTypesRes.data) {
-          setRoomTypes(roomTypesRes.data);
-        }
-
-        if (salesOwnersRes.success && salesOwnersRes.data) {
-          setSalesOwners(salesOwnersRes.data);
-        }
-      } catch (err) {
-        console.error('Error fetching data:', err);
-      } finally {
-        setIsLoadingData(false);
-      }
-    };
-
-    fetchData();
-  }, [currentUser]);
 
   // Debounced search
   useEffect(() => {
@@ -184,10 +155,12 @@ function AmendBooking() {
     setError('');
 
     try {
-      const response = await bookingsApi.list({
-        search: searchKeyword,
-        limit: 20,
-      });
+      const token = getAuthToken();
+      const res = await api.bookings.$get(
+        { query: { search: searchKeyword, limit: 20 } },
+        { headers: authHeaders(token) }
+      );
+      const response = await res.json();
 
       if (response.success && response.data) {
         setSearchResults(response.data);
@@ -206,7 +179,12 @@ function AmendBooking() {
   const handleSelectBooking = async (booking: Booking) => {
     // Fetch fresh booking data
     try {
-      const response = await bookingsApi.get(booking.id);
+      const token = getAuthToken();
+      const res = await api.bookings[':id'].$get(
+        { param: { id: booking.id } },
+        { headers: authHeaders(token) }
+      );
+      const response = await res.json();
       if (response.success && response.data) {
         setSelectedBooking(response.data);
       } else {
