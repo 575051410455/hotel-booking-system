@@ -328,6 +328,8 @@ function BookingTable() {
                 setIsAddingNew(false);
                 setFormData({});
                 setFormErrors([]);
+                refetch();
+                setCurrentPage(1);
               } else {
                 reject(new Error(response.error));
               }
@@ -361,6 +363,7 @@ function BookingTable() {
                   setEditingBooking(null);
                   setFormData({});
                   setFormErrors([]);
+                  refetch();
                 } else {
                   reject(new Error(response.error));
                 }
@@ -773,15 +776,15 @@ function BookingTable() {
                             )}
                             {(booking.status === "PENDING" ||
                               booking.status === "CONFIRMED") && (
-                              <button
-                                onClick={() => handleCancel(booking)}
-                                disabled={isSubmitting}
-                                className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors disabled:opacity-50"
-                                title="ยกเลิก"
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </button>
-                            )}
+                                <button
+                                  onClick={() => handleCancel(booking)}
+                                  disabled={isSubmitting}
+                                  className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors disabled:opacity-50"
+                                  title="ยกเลิก"
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </button>
+                              )}
                             <button
                               onClick={() => handleEdit(booking)}
                               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

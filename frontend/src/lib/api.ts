@@ -245,6 +245,15 @@ export interface Booking {
   notes?: string;
   createdAt: string;
   updatedAt?: string;
+  amendmentLogs?: {
+    timestamp: string;
+    amendedBy: string;
+    changes: {
+      field: string;
+      before: any;
+      after: any;
+    }[];
+  }[];
 }
 
 export interface RoomType {
@@ -273,9 +282,11 @@ export const getBookingQueryOptions = (params: ListBookingsParams = {}) => {
         { headers: authHeaders(token) }
       );
       const json = await res.json();
+      // Backend returns { success: true, data: { data: [...], pagination: {...} } }
+      const result = json?.data;
       return {
-        data: Array.isArray(json?.data) ? json.data : [],
-        pagination: json?.pagination,
+        data: Array.isArray(result?.data) ? result.data : [],
+        pagination: result?.pagination,
       };
     },
   });
@@ -292,9 +303,10 @@ export const bookingsQueryOptions = (params: ListBookingsParams = {}) => {
         { headers: authHeaders(token) }
       );
       const json = await res.json();
+      const result = json?.data;
       return {
-        data: Array.isArray(json?.data) ? json.data : [],
-        pagination: json?.pagination,
+        data: Array.isArray(result?.data) ? result.data : [],
+        pagination: result?.pagination,
       };
     },
   });
