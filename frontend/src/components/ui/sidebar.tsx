@@ -6,8 +6,32 @@ import { cva } from "class-variance-authority"
 import type { VariantProps } from "class-variance-authority"
 import { PanelLeftIcon } from "lucide-react"
 
-import { useIsMobile } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+
+function useIsMobile() {
+  const [isMobile, setIsMobile] = React.useState(false)
+
+  React.useEffect(() => {
+    if (typeof window === "undefined") return
+
+    const mql = window.matchMedia("(max-width: 767px)")
+    const handle = (e: MediaQueryListEvent) => setIsMobile(e.matches)
+
+    // set initial value
+    setIsMobile(mql.matches)
+
+    if ("addEventListener" in mql) {
+      ;(mql as any).addEventListener("change", handle)
+      return () => (mql as any).removeEventListener("change", handle)
+    } else {
+      // fallback for older browsers
+      ;(mql as any).addListener(handle)
+      return () => (mql as any).removeListener(handle)
+    }
+  }, [])
+
+  return isMobile
+}
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Separator } from "@/components/ui/separator"

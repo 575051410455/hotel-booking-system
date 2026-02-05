@@ -1,18 +1,7 @@
-// src/routes/dashboard.tsx
 import { useMemo } from "react";
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 
-import {
-  Hotel,
-  Calendar,
-  CheckCircle,
-  Clock,
-
-  Search,
-  Table,
-  Edit,
-} from "lucide-react";
-
+import { Hotel, Calendar, CheckCircle, Clock, Search, Table, Edit } from "lucide-react";
 
 import type { User } from "@/data/users";
 import { useAuthStore } from "@/hooks/auth";
@@ -31,9 +20,9 @@ import {
   Cell,
 } from "recharts";
 
-import { 
-  IconUsers, 
-  IconActivity, 
+import {
+  IconUsers,
+  IconActivity,
   IconTrendingUp,
   IconBuildingSkyscraper,
   IconCurrencyDollar,
@@ -41,22 +30,22 @@ import {
   IconBed,
 } from "@tabler/icons-react";
 
-
-import { 
-  Card, 
+import {
+  Card,
   CardAction,
-
-  CardDescription, 
+  CardDescription,
   CardFooter,
-  CardHeader, 
-  CardTitle 
+  CardHeader,
+  CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useQuery, queryOptions } from "@tanstack/react-query";
-import { bookingsApi, getBookingsQueryOptions, getRoomTypesQueryOptions, roomTypesApi } from "@/lib/api";
 
+import { useQuery } from "@tanstack/react-query";
 
-type Menu = "check" | "book" | "confirm" | "amend" | "table";
+// ✅ ใช้ queryOptions ที่เป็น TanStack Query ทั้งหมด (จากไฟล์ api ที่ refactor แล้ว)
+import { bookingsQueryOptions, roomTypesQueryOptions } from "@/lib/api";
+
+type Menu = "book" | "confirm" | "amend" | "table";
 
 interface DashboardProps {
   onNavigate: (menu: Menu) => void;
@@ -79,11 +68,7 @@ function DashboardPage() {
   const currentUser = useAuthStore((s) => s.user)!;
 
   const handleNavigate = (menu: Menu) => {
-    // ปรับ path ตามโครงจริงของโปรเจ็กต์ได้เลย
     switch (menu) {
-      case "check":
-        navigate({ to: "/availability" });
-        break;
       case "book":
         navigate({ to: "/bookings/new" });
         break;
@@ -102,41 +87,46 @@ function DashboardPage() {
   return <Dashboard onNavigate={handleNavigate} currentUser={currentUser} />;
 }
 
-
-
 // ---------- UI หลักของ Dashboard ----------
 export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
+  // ✅ dashboard ต้องใช้ข้อมูลพอสมควรเพื่อคำนวณ stats
+  const { data: bookingsRes, isLoading: loadingBookings, error: bookingErr } = useQuery(
+    bookingsQueryOptions({ page: 1, limit: 100 })
+  );
 
-   const { data: bookingsRes, isLoading: loadingBookings } = useQuery(getBookingsQueryOptions());
-  const { data: roomTypesRes, isLoading: loadingRoomTypes } = useQuery(getRoomTypesQueryOptions);
+  const { data: roomTypesRes, isLoading: loadingRoomTypes, error: roomErr } = useQuery(
+    roomTypesQueryOptions()
+  );
 
-  const bookings = bookingsRes?.data || [];
-  const roomTypes = roomTypesRes?.data || [];
 
-  const COLORS = ["#fbbf24", "#34d399", "#f87171"];
+
+  // ✅ รองรับ response ได้หลายรูปแบบ (เผื่อ backend ส่งต่างกัน)
+  const bookings = (bookingsRes as any)?.data ?? (bookingsRes as any)?.data?.data ?? [];
+  const roomTypes = (roomTypesRes as any)?.data ?? (roomTypesRes as any)?.data?.data ?? [];
+
+  console.log("bookingsRes =", bookingsRes);
 
   const stats = useMemo(() => {
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
-    const pending = bookings.filter((b) => b.status === "PENDING").length;
-    const confirmed = bookings.filter((b) => b.status === "CONFIRMED").length;
-    const cancelled = bookings.filter(
-      (b) => b.status === "CANCELLED" || b.status === "VOID"
-    ).length;
+    const pending = bookings.filter((b: any) => b.status === "PENDING").length;
+    const confirmed = bookings.filter((b: any) => b.status === "CONFIRMED").length;
+    const cancelled = bookings.filter((b: any) => b.status === "CANCELLED" || b.status === "VOID").length;
     const total = bookings.length;
 
     const revenue = bookings
-      .filter((b) => b.status === "CONFIRMED")
-      .reduce((sum, b) => {
-        const nights = Math.ceil(
-          (new Date(b.checkOut).getTime() - new Date(b.checkIn).getTime()) /
-            (1000 * 60 * 60 * 24)
-        );
-        return sum + b.rate * b.numberOfRooms * nights;
+      .filter((b: any) => b.status === "CONFIRMED")
+      .reduce((sum: number, b: any) => {
+        const inD = new Date(b.checkIn);
+        const outD = new Date(b.checkOut);
+        const nights = Math.ceil((outD.getTime() - inD.getTime()) / (1000 * 60 * 60 * 24));
+
+        const rate = typeof b.rate === "string" ? Number(b.rate) : b.rate;
+        return sum + (Number.isFinite(rate) ? rate : 0) * b.numberOfRooms * nights;
       }, 0);
 
-    const todayCheckIns = bookings.filter((b) => {
+    const todayCheckIns = bookings.filter((b: any) => {
       const checkIn = new Date(b.checkIn);
       checkIn.setHours(0, 0, 0, 0);
       return (
@@ -145,21 +135,27 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
       );
     }).length;
 
-    const todayCheckOuts = bookings.filter((b) => {
+    const todayCheckOuts = bookings.filter((b: any) => {
       const checkOut = new Date(b.checkOut);
       checkOut.setHours(0, 0, 0, 0);
       return checkOut.getTime() === today.getTime() && b.status === "CONFIRMED";
     }).length;
 
-    const totalRooms = roomTypes.reduce((sum, rt) => sum + rt.totalRooms, 0);
+    const totalRooms = roomTypes.reduce((sum: number, rt: any) => sum + (rt.totalRooms || 0), 0);
+
     const occupiedRooms = bookings
-      .filter((b) => {
+      .filter((b: any) => {
         if (b.status !== "CONFIRMED" && b.status !== "PENDING") return false;
+
         const checkIn = new Date(b.checkIn);
+        checkIn.setHours(0, 0, 0, 0);
+
         const checkOut = new Date(b.checkOut);
+        checkOut.setHours(0, 0, 0, 0);
+
         return today >= checkIn && today < checkOut;
       })
-      .reduce((sum, b) => sum + b.numberOfRooms, 0);
+      .reduce((sum: number, b: any) => sum + (b.numberOfRooms || 0), 0);
 
     const occupancyRate =
       totalRooms > 0 ? ((occupiedRooms / totalRooms) * 100).toFixed(1) : "0";
@@ -176,52 +172,38 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
       occupiedRooms,
       totalRooms,
     };
-  }, [bookings, roomTypes]); // เพิ่ม roomTypes ใน dependencies
+  }, [bookings, roomTypes]);
 
   // Room type distribution
   const roomTypeData = useMemo(() => {
-    const distribution: { [key: string]: number } = {};
-
+    const distribution: Record<string, number> = {};
     bookings
-      .filter((b) => b.status === "CONFIRMED" || b.status === "PENDING")
-      .forEach((b) => {
-        distribution[b.roomType] =
-          (distribution[b.roomType] || 0) + b.numberOfRooms;
+      .filter((b: any) => b.status === "CONFIRMED" || b.status === "PENDING")
+      .forEach((b: any) => {
+        distribution[b.roomType] = (distribution[b.roomType] || 0) + (b.numberOfRooms || 0);
       });
 
-    return Object.entries(distribution).map(([name, value]) => ({
-      name,
-      value,
-    }));
+    return Object.entries(distribution).map(([name, value]) => ({ name, value }));
   }, [bookings]);
 
-  // Booking status chart data
   const statusData = [
     { name: "Pending", value: stats.pending, color: "#fbbf24" },
     { name: "Confirmed", value: stats.confirmed, color: "#34d399" },
     { name: "Cancelled", value: stats.cancelled, color: "#f87171" },
   ];
 
-  // Recent bookings
   const recentBookings = useMemo(() => {
     return [...bookings]
-      .sort(
-        (a, b) =>
-          new Date(b.createdAt).getTime() -
-          new Date(a.createdAt).getTime()
-      )
+      .sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, 5);
   }, [bookings]);
 
-  // Upcoming check-ins (next 7 days)
   const upcomingCheckIns = useMemo(() => {
     const today = new Date();
-    const nextWeek = new Date(
-      today.getTime() + 7 * 24 * 60 * 60 * 1000
-    );
+    const nextWeek = new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000);
 
     return bookings
-      .filter((b) => {
+      .filter((b: any) => {
         const checkIn = new Date(b.checkIn);
         return (
           checkIn >= today &&
@@ -229,13 +211,28 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
           (b.status === "CONFIRMED" || b.status === "PENDING")
         );
       })
-      .sort(
-        (a, b) =>
-          new Date(a.checkIn).getTime() -
-          new Date(b.checkIn).getTime()
-      )
+      .sort((a: any, b: any) => new Date(a.checkIn).getTime() - new Date(b.checkIn).getTime())
       .slice(0, 5);
   }, [bookings]);
+
+  // ✅ Loading / Error UI (กันหน้าแตก)
+  if (loadingBookings || loadingRoomTypes) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-gray-50">
+        <div className="text-gray-600">Loading dashboard...</div>
+      </div>
+    );
+  }
+
+  if (bookingErr || roomErr) {
+    return (
+      <div className="min-h-screen grid place-items-center bg-gray-50">
+        <div className="text-red-600">
+          {(bookingErr as Error)?.message || (roomErr as Error)?.message || "Load failed"}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -266,20 +263,7 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
 
       <div className="max-w-7xl mx-auto px-8 py-8">
         {/* Quick Actions */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-8">
-          <button
-            onClick={() => onNavigate("check")}
-            className="bg-white p-6 rounded-xl shadow hover:shadow-lg transition-all border-2 border-transparent hover:border-indigo-500"
-          >
-            <div className="flex items-center gap-3">
-              <div className="bg-indigo-100 p-3 rounded-lg">
-                <Search className="w-6 h-6 text-indigo-600" />
-              </div>
-              <div className="text-left">
-                <p className="text-gray-600">เช็คห้องว่าง</p>
-              </div>
-            </div>
-          </button>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
 
           <button
             onClick={() => onNavigate("book")}
@@ -324,8 +308,7 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
               </div>
               <div className="text-left">
                 <p className="text-gray-600">แก้ไขการจอง</p>
-                {(currentUser.role === "salescoordinator" ||
-                  currentUser.role === "admin") && (
+                {(currentUser.role === "salescoordinator" || currentUser.role === "admin") && (
                   <span className="inline-block px-2 py-1 bg-orange-100 text-orange-800 rounded-full text-xs mt-1">
                     Sales-Co
                   </span>
@@ -349,214 +332,128 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
           </button>
         </div>
 
-        {/* Statistics Cards */}
-        {/* <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="bg-blue-100 p-3 rounded-lg">
-                <BarChart3 className="w-6 h-6 text-blue-600" />
+        {/* Hotel Stats Cards */}
+        <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-sm md:grid-cols-2 xl:grid-cols-4 mb-8">
+          {/* Total Bookings */}
+          <Card className="@container/card rounded-xl shadow p-3">
+            <CardHeader>
+              <CardDescription className="flex items-center gap-2">
+                <IconCalendarEvent className="size-4" />
+                การจองทั้งหมด
+              </CardDescription>
+              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                {stats.total}
+              </CardTitle>
+              <CardAction>
+                <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
+                  <IconTrendingUp className="size-3" />
+                  +12.5%
+                </Badge>
+              </CardAction>
+            </CardHeader>
+            <CardFooter className="flex-col items-start gap-1.5 text-sm">
+              <div className="flex gap-2">
+                <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
+                  รอดำเนินการ: {stats.pending}
+                </Badge>
+                <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100">
+                  ยืนยันแล้ว: {stats.confirmed}
+                </Badge>
               </div>
-              <ArrowUpRight className="w-5 h-5 text-green-600" />
-            </div>
-            <p className="text-gray-600 mb-1">การจองทั้งหมด</p>
-            <p className="text-gray-900">{stats.total}</p>
-            <div className="mt-3 flex gap-2">
-              <span className="text-xs px-2 py-1 bg-yellow-100 text-yellow-800 rounded">
-                Pending: {stats.pending}
-              </span>
-              <span className="text-xs px-2 py-1 bg-green-100 text-green-800 rounded">
-                Confirmed: {stats.confirmed}
-              </span>
-            </div>
-          </div>
+            </CardFooter>
+          </Card>
 
-          <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="bg-green-100 p-3 rounded-lg">
-                <DollarSign className="w-6 h-6 text-green-600" />
+          {/* Revenue */}
+          <Card className="@container/card rounded-xl shadow p-3">
+            <CardHeader>
+              <CardDescription className="flex items-center gap-2">
+                <IconCurrencyDollar className="size-4" />
+                รายได้ทั้งหมด
+              </CardDescription>
+              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                ฿{stats.revenue.toLocaleString()}
+              </CardTitle>
+              <CardAction>
+                <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
+                  <IconTrendingUp className="size-3" />
+                  +8.2%
+                </Badge>
+              </CardAction>
+            </CardHeader>
+            <CardFooter className="flex-col items-start gap-1.5 text-sm">
+              <div className="line-clamp-1 flex gap-2 font-medium text-green-600">
+                เพิ่มขึ้นจากเดือนที่แล้ว <IconTrendingUp className="size-4" />
               </div>
-              <TrendingUp className="w-5 h-5 text-green-600" />
-            </div>
-            <p className="text-gray-600 mb-1">รายได้ทั้งหมด</p>
-            <p className="text-gray-900">
-              ฿{stats.revenue.toLocaleString()}
-            </p>
-            <p className="text-green-600 mt-2">จากการจองที่ยืนยันแล้ว</p>
-          </div>
+              <div className="text-muted-foreground">จากการจองที่ยืนยันแล้ว</div>
+            </CardFooter>
+          </Card>
 
-          <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="bg-purple-100 p-3 rounded-lg">
-                <Hotel className="w-6 h-6 text-purple-600" />
+          {/* Occupancy Rate */}
+          <Card className="@container/card rounded-xl shadow p-3">
+            <CardHeader>
+              <CardDescription className="flex items-center gap-2">
+                <IconBed className="size-4" />
+                อัตราการเข้าพัก
+              </CardDescription>
+              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                {stats.occupancyRate}%
+              </CardTitle>
+              <CardAction>
+                <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
+                  <IconBuildingSkyscraper className="size-3" />
+                  {stats.occupiedRooms}/{stats.totalRooms}
+                </Badge>
+              </CardAction>
+            </CardHeader>
+            <CardFooter className="flex-col items-start gap-1.5 text-sm">
+              <div className="w-full">
+                <div className="flex justify-between text-xs mb-1">
+                  <span className="text-muted-foreground">ห้องที่ถูกจอง</span>
+                  <span className="font-medium">{stats.occupiedRooms} ห้อง</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-purple-600 h-2 rounded-full transition-all"
+                    style={{ width: `${stats.occupancyRate}%` }}
+                  />
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-purple-600">
-                  {stats.occupancyRate}%
-                </p>
-              </div>
-            </div>
-            <p className="text-gray-600 mb-1">อัตราการเข้าพัก</p>
-            <p className="text-gray-900">
-              {stats.occupiedRooms} / {stats.totalRooms} ห้อง
-            </p>
-            <div className="mt-3 w-full bg-gray-200 rounded-full h-2">
-              <div
-                className="bg-purple-600 h-2 rounded-full transition-all"
-                style={{ width: `${stats.occupancyRate}%` }}
-              />
-            </div>
-          </div>
+            </CardFooter>
+          </Card>
 
-          <div className="bg-white rounded-xl shadow p-6">
-            <div className="flex items-center justify-between mb-4">
-              <div className="bg-orange-100 p-3 rounded-lg">
-                <Users className="w-6 h-6 text-orange-600" />
+          {/* Today Check-in/out */}
+          <Card className="@container/card rounded-xl shadow p-3">
+            <CardHeader>
+              <CardDescription className="flex items-center gap-2">
+                <IconUsers className="size-4" />
+                วันนี้
+              </CardDescription>
+              <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
+                {stats.todayCheckIns + stats.todayCheckOuts} รายการ
+              </CardTitle>
+              <CardAction>
+                <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">
+                  <IconActivity className="size-3" />
+                  Active
+                </Badge>
+              </CardAction>
+            </CardHeader>
+            <CardFooter className="flex-col items-start gap-1.5 text-sm">
+              <div className="flex items-center gap-4 w-full">
+                <div className="flex-1">
+                  <p className="text-2xl font-bold text-green-600">{stats.todayCheckIns}</p>
+                  <p className="text-muted-foreground text-xs">Check-in</p>
+                </div>
+                <div className="h-10 w-px bg-border" />
+                <div className="flex-1">
+                  <p className="text-2xl font-bold text-blue-600">{stats.todayCheckOuts}</p>
+                  <p className="text-muted-foreground text-xs">Check-out</p>
+                </div>
               </div>
-            </div>
-            <p className="text-gray-600 mb-1">วันนี้</p>
-            <div className="flex items-center gap-4">
-              <div>
-                <p className="text-gray-900">
-                  {stats.todayCheckIns}
-                </p>
-                <p className="text-gray-600">Check-in</p>
-              </div>
-              <div className="h-10 w-px bg-gray-300" />
-              <div>
-                <p className="text-gray-900">
-                  {stats.todayCheckOuts}
-                </p>
-                <p className="text-gray-600">Check-out</p>
-              </div>
-            </div>
-          </div> 
-        </div> */} 
+            </CardFooter>
+          </Card>
+        </div>
 
-      {/* Hotel Stats Cards - SectionCards Style */}
-      <div className="*:data-[slot=card]:from-primary/5 *:data-[slot=card]:to-card grid grid-cols-1 gap-4 *:data-[slot=card]:bg-gradient-to-t *:data-[slot=card]:shadow-sm md:grid-cols-2 xl:grid-cols-4 mb-8">
-        {/* Total Bookings */}
-        <Card className="@container/card rounded-xl shadow p-3">
-          <CardHeader>
-            <CardDescription className="flex items-center gap-2">
-              <IconCalendarEvent className="size-4" />
-              การจองทั้งหมด
-            </CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-              {stats.total}
-            </CardTitle>
-            <CardAction>
-              <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
-                <IconTrendingUp className="size-3" />
-                +12.5%
-              </Badge>
-            </CardAction>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm">
-            <div className="flex gap-2">
-              <Badge variant="secondary" className="bg-yellow-100 text-yellow-800 hover:bg-yellow-100">
-                รอดำเนินการ: {stats.pending}
-              </Badge>
-              <Badge variant="secondary" className="bg-green-100 text-green-800 hover:bg-green-100">
-                ยืนยันแล้ว: {stats.confirmed}
-              </Badge>
-            </div>
-          </CardFooter>
-        </Card>
-
-        {/* Revenue */}
-        <Card className="@container/card rounded-xl shadow p-3">
-          <CardHeader>
-            <CardDescription className="flex items-center gap-2">
-              <IconCurrencyDollar className="size-4" />
-              รายได้ทั้งหมด
-            </CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-              ฿{stats.revenue.toLocaleString()}
-            </CardTitle>
-            <CardAction>
-              <Badge variant="outline" className="text-green-600 border-green-200 bg-green-50">
-                <IconTrendingUp className="size-3" />
-                +8.2%
-              </Badge>
-            </CardAction>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm">
-            <div className="line-clamp-1 flex gap-2 font-medium text-green-600">
-              เพิ่มขึ้นจากเดือนที่แล้ว <IconTrendingUp className="size-4" />
-            </div>
-            <div className="text-muted-foreground">
-              จากการจองที่ยืนยันแล้ว
-            </div>
-          </CardFooter>
-        </Card>
-
-        {/* Occupancy Rate */}
-        <Card className="@container/card rounded-xl shadow p-3">
-          <CardHeader>
-            <CardDescription className="flex items-center gap-2">
-              <IconBed className="size-4" />
-              อัตราการเข้าพัก
-            </CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-              {stats.occupancyRate}%
-            </CardTitle>
-            <CardAction>
-              <Badge variant="outline" className="text-purple-600 border-purple-200 bg-purple-50">
-                <IconBuildingSkyscraper className="size-3" />
-                {stats.occupiedRooms}/{stats.totalRooms}
-              </Badge>
-            </CardAction>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm">
-            <div className="w-full">
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-muted-foreground">ห้องที่ถูกจอง</span>
-                <span className="font-medium">{stats.occupiedRooms} ห้อง</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div
-                  className="bg-purple-600 h-2 rounded-full transition-all"
-                  style={{ width: `${stats.occupancyRate}%` }}
-                />
-              </div>
-            </div>
-          </CardFooter>
-        </Card>
-
-        {/* Today Check-in/out */}
-        <Card className="@container/card rounded-xl shadow p-3">
-          <CardHeader>
-            <CardDescription className="flex items-center gap-2">
-              <IconUsers className="size-4" />
-              วันนี้
-            </CardDescription>
-            <CardTitle className="text-2xl font-semibold tabular-nums @[250px]/card:text-3xl">
-              {stats.todayCheckIns + stats.todayCheckOuts} รายการ
-            </CardTitle>
-            <CardAction>
-              <Badge variant="outline" className="text-orange-600 border-orange-200 bg-orange-50">
-                <IconActivity className="size-3" />
-                Active
-              </Badge>
-            </CardAction>
-          </CardHeader>
-          <CardFooter className="flex-col items-start gap-1.5 text-sm">
-            <div className="flex items-center gap-4 w-full">
-              <div className="flex-1">
-                <p className="text-2xl font-bold text-green-600">{stats.todayCheckIns}</p>
-                <p className="text-muted-foreground text-xs">Check-in</p>
-              </div>
-              <div className="h-10 w-px bg-border" />
-              <div className="flex-1">
-                <p className="text-2xl font-bold text-blue-600">{stats.todayCheckOuts}</p>
-                <p className="text-muted-foreground text-xs">Check-out</p>
-              </div>
-            </div>
-          </CardFooter>
-        </Card>
-      </div>
-
-      
         {/* Charts */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
           {/* Booking Status Chart */}
@@ -575,10 +472,7 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
                   dataKey="value"
                 >
                   {statusData.map((entry, index) => (
-                    <Cell
-                      key={`cell-${index}`}
-                      fill={entry.color}
-                    />
+                    <Cell key={`cell-${index}`} fill={entry.color} />
                   ))}
                 </Pie>
                 <Tooltip />
@@ -588,26 +482,15 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
 
           {/* Room Type Distribution */}
           <div className="bg-white rounded-xl shadow p-6">
-            <h2 className="text-gray-900 mb-4">
-              การจองตามประเภทห้อง
-            </h2>
+            <h2 className="text-gray-900 mb-4">การจองตามประเภทห้อง</h2>
             <ResponsiveContainer width="100%" height={250}>
               <BarChart data={roomTypeData}>
                 <CartesianGrid strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="name"
-                  angle={-45}
-                  textAnchor="end"
-                  height={80}
-                />
+                <XAxis dataKey="name" angle={-45} textAnchor="end" height={80} />
                 <YAxis />
                 <Tooltip />
                 <Legend />
-                <Bar
-                  dataKey="value"
-                  fill="#6366f1"
-                  name="จำนวนห้อง"
-                />
+                <Bar dataKey="value" fill="#6366f1" name="จำนวนห้อง" />
               </BarChart>
             </ResponsiveContainer>
           </div>
@@ -620,23 +503,17 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
             <h2 className="text-gray-900 mb-4">การจองล่าสุด</h2>
             <div className="space-y-3">
               {recentBookings.length === 0 ? (
-                <p className="text-gray-600 text-center py-8">
-                  ยังไม่มีการจอง
-                </p>
+                <p className="text-gray-600 text-center py-8">ยังไม่มีการจอง</p>
               ) : (
-                recentBookings.map((booking) => (
+                recentBookings.map((booking: any) => (
                   <div
                     key={booking.id}
                     className="border border-gray-200 rounded-lg p-4 hover:border-indigo-300 transition-colors"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <p className="text-gray-900">
-                          {booking.bookingId}
-                        </p>
-                        <p className="text-gray-600">
-                          {booking.customerName}
-                        </p>
+                        <p className="text-gray-900">{booking.bookingId}</p>
+                        <p className="text-gray-600">{booking.customerName}</p>
                       </div>
                       <span
                         className={`px-3 py-1 rounded-full text-xs ${
@@ -654,9 +531,7 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
                       <span>{booking.checkIn}</span>
                       <span>→</span>
                       <span>{booking.checkOut}</span>
-                      <span className="ml-auto">
-                        {booking.numberOfRooms} ห้อง
-                      </span>
+                      <span className="ml-auto">{booking.numberOfRooms} ห้อง</span>
                     </div>
                   </div>
                 ))
@@ -666,28 +541,20 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
 
           {/* Upcoming Check-ins */}
           <div className="bg-white rounded-xl shadow p-6">
-            <h2 className="text-gray-900 mb-4">
-              Check-in ที่กำลังจะมาถึง (7 วันข้างหน้า)
-            </h2>
+            <h2 className="text-gray-900 mb-4">Check-in ที่กำลังจะมาถึง (7 วันข้างหน้า)</h2>
             <div className="space-y-3">
               {upcomingCheckIns.length === 0 ? (
-                <p className="text-gray-600 text-center py-8">
-                  ไม่มี Check-in ที่กำลังจะมาถึง
-                </p>
+                <p className="text-gray-600 text-center py-8">ไม่มี Check-in ที่กำลังจะมาถึง</p>
               ) : (
-                upcomingCheckIns.map((booking) => (
+                upcomingCheckIns.map((booking: any) => (
                   <div
                     key={booking.id}
                     className="border border-gray-200 rounded-lg p-4 hover:border-green-300 transition-colors"
                   >
                     <div className="flex items-start justify-between mb-2">
                       <div>
-                        <p className="text-gray-900">
-                          {booking.bookingId}
-                        </p>
-                        <p className="text-gray-600">
-                          {booking.customerName}
-                        </p>
+                        <p className="text-gray-900">{booking.bookingId}</p>
+                        <p className="text-gray-600">{booking.customerName}</p>
                       </div>
                       <span
                         className={`px-3 py-1 rounded-full text-xs ${
@@ -704,9 +571,7 @@ export function Dashboard({ onNavigate, currentUser }: DashboardProps) {
                         <Clock className="w-4 h-4" />
                         <span>{booking.checkIn}</span>
                       </div>
-                      <span className="ml-auto">
-                        {booking.roomType}
-                      </span>
+                      <span className="ml-auto">{booking.roomType}</span>
                       <span>{booking.numberOfRooms} ห้อง</span>
                     </div>
                   </div>

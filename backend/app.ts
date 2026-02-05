@@ -16,15 +16,13 @@ import companyRoutes from "./routes/companies";
 import {salesUsersRouter} from "./routes/sales-users";
 
 import { blackoutDateRoutes, minimumStayRuleRoutes } from "./routes/rules";
-import { availabilityRouter } from "./routes/Availability";
+// import { availabilityRouter } from "./routes/Availability";
 
 
 const app = new Hono();
 app.use("*", prettyJSON());
 app.use("*", secureHeaders());
 app.use("*", logger());
-
-
 
 
 // CORS middleware
@@ -47,7 +45,7 @@ const apiRoutes = app.basePath("/api")
     .route('/sales-users', salesUsersRouter)
     .route('/rules/blackout-dates', blackoutDateRoutes)
     .route('/rules/minimum-stay', minimumStayRuleRoutes)
-    .route('/availability', availabilityRouter);
+    // .route('/availability', availabilityRouter);
 
 // Health check
 app.get("/", (c) => {

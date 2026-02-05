@@ -1,374 +1,217 @@
-import { hc } from 'hono/client'
-import type { ApiRoutes } from '../../../backend/app'
-import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query'
+// src/lib/api.ts
+import { hc } from "hono/client";
+import type { ApiRoutes } from "@backend/app";
 
-// Create the RPC client
+import {
+  queryOptions,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 
-const client = hc<ApiRoutes>('http://localhost:3000/')
+import type { InferRequestType, InferResponseType } from "hono/client";
 
-export interface User {
-  id: string;
-  email: string;
-  username: string;
-  lastname: string;
-  role: "user" | "admin";
-  avater: string;
-  createdAt?: string;
-  updatedAt?: string;
-}
+// ====== Shared Types from backend (แนะนำย้ายไป shared) ======
+import type { CreateUserInput } from "@backend/types";
 
-export interface AuthResponse {
-  user: User;
-  token: string;
-}
+// =======================
+// 1) Hono Client
+// =======================
+// ถ้า backend mount ที่ /api แล้ว export เป็น app.route("/api", ...)
+// การใช้ base = "/" จะเรียก /api/... ถูกต้องผ่าน client.api
+const client = hc<ApiRoutes>("/");
+export const api = client.api;
 
-// Helper function to handle RPC responses
-async function handleResponse<T>(res: Response): Promise<T> {
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error.error || "Request failed");
+// =======================
+// 2) Helpers
+// =======================
+export const getAuthToken = (): string | null => {
+  try {
+    const raw = localStorage.getItem("auth-storage");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.state?.accessToken ?? null;
+  } catch {
+    return null;
   }
-  return res.json();
-}
-
-// ============================================
-// Auth API
-// ============================================
-
-export async function login(email: string, password: string): Promise<AuthResponse> {
-  const res = await client.api.auth.login.$post({
-    json: { email, password },
-  });
-  console.log("show email user:", email)
-  return handleResponse<AuthResponse>(res);
-}
-
-export async function register(
-  email: string,
-  password: string,
-  username: string,
-  lastname: string,
-): Promise<AuthResponse> {
-  const res = await client.api.auth.register.$post({
-    json: { email, password, username, lastname },
-  });
-  return handleResponse<AuthResponse>(res);
-}
-
-// ============================================
-// User API with Query Options
-// ============================================
-
-export const getMeQueryOptions = (token: string) =>
-  queryOptions({
-    queryKey: ['user', 'me'],
-    queryFn: async () => {
-      const res = await client.api.users.me.$get(undefined, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      return handleResponse<{ user: User }>(res);
-    },
-    enabled: !!token,
-    staleTime: 5 * 60 * 1000, // 5 minutes
-  });
-
-export const getAllUsersQueryOptions = (token: string) =>
-  queryOptions({
-    queryKey: ['users', 'all'],
-    queryFn: async () => {
-      const res = await client.api.users.$get(undefined, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      return handleResponse<{ users: User[] }>(res);
-    },
-    enabled: !!token,
-    staleTime: 1 * 60 * 1000, // 1 minute
-  });
-
-// Legacy functions for backward compatibility
-export async function getMe(token: string): Promise<{ user: User }> {
-  const res = await client.api.users.me.$get(undefined, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return handleResponse<{ user: User }>(res);
-}
-
-export async function getAllUsers(token: string): Promise<{ users: User[] }> {
-  const res = await client.api.users.$get(undefined, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return handleResponse<{ users: User[] }>(res);
-}
-
-// ============================================
-// User Mutation Hooks
-// ============================================
-
-export function useCreateUser(token: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (data: { email: string; password: string; username: string; lastname: string; role: "user" | "admin" }) => {
-      const res = await client.api.users.$post({
-        json: data,
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      return handleResponse<{ user: User }>(res);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-    },
-  });
-}
-
-export function useUpdateUser(token: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async ({
-      userId,
-      data
-    }: {
-      userId: string;
-      data: { email?: string; password?: string; username?: string; lastname?: string; role?: "user" | "admin" }
-    }) => {
-      const res = await client.api.users[":id"].$patch({
-        param: { id: userId },
-        json: data,
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      return handleResponse<{ user: User }>(res);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-    },
-  });
-}
-
-export function useDeleteUser(token: string) {
-  const queryClient = useQueryClient();
-
-  return useMutation({
-    mutationFn: async (userId: string) => {
-      const res = await client.api.users[":id"].$delete({
-        param: { id: userId },
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      return handleResponse<{ message: string }>(res);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-    },
-  });
-}
-
-// Legacy functions for backward compatibility
-export async function createUser(
-  token: string,
-  data: { email: string; password: string; username: string; lastname: string; role: "user" | "admin" }
-): Promise<{ user: User }> {
-  const res = await client.api.users.$post({
-    json: data,
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return handleResponse<{ user: User }>(res);
-}
-
-export async function updateUser(
-  token: string,
-  userId: string,
-  data: { email?: string; password?: string; username?: string; lastname?: string; role?: "user" | "admin" }
-): Promise<{ user: User }> {
-  const res = await client.api.users[":id"].$patch({
-    param: { id: userId },
-    json: data,
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return handleResponse<{ user: User }>(res);
-}
-
-export async function deleteUser(token: string, userId: string): Promise<{ message: string }> {
-  const res = await client.api.users[":id"].$delete({
-    param: { id: userId },
-    headers: { Authorization: `Bearer ${token}` },
-  });
-  return handleResponse<{ message: string }>(res);
-}
-
-// Export the client for direct use if needed
-export { client }
-
-
-
-// ============================================
-
-
-
-// API Configuration
-const API_BASE_URL = import.meta.env.VITE_API_URL || '/api';
-
-// Get auth token from store or localStorage
-const getAuthToken = (): string | null => {
-  // Try to get from localStorage first (or your auth store)
-  return localStorage.getItem('accessToken');
 };
 
-// ============ Types ============
+export const authHeaders = (token?: string | null): HeadersInit =>
+  token ? { Authorization: `Bearer ${token}` } : {};
 
-export interface Booking {
-  id: string;
-  bookingId: string;
-  customerName: string;
-  company: string;
-  saleOwner: string;
-  saleOwnerId?: string;
-  phone: string;
-  email: string;
-  checkIn: string;
-  checkOut: string;
-  roomType: string;
-  numberOfRooms: number;
-  rate: string | number;
-  paymentMethod: string;
-  status: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'VOID';
-  createdAt: string;
-  holdExpiry?: string;
-  documents?: string[];
-  cancelReason?: string;
-  cancelDocuments?: string[];
-  cancelledAt?: string;
-  cancelledBy?: string;
-  lastAmendedAt?: string;
-  lastAmendedBy?: string;
-  amendmentLogs?: {
-    timestamp: string;
-    amendedBy: string;
-    changes: {
-      field: string;
-      before: any;
-      after: any;
-    }[];
-  }[];
-  notes?: string;
+async function safeJson(res: Response) {
+  try {
+    return await res.json();
+  } catch {
+    return null;
+  }
 }
 
-export interface RoomType {
-  id: string;
-  name: string;
-  totalRooms: number;
-  baseRate: string;
-  description?: string;
-  amenities?: string[];
-  createdAt?: string;
-  updatedAt?: string;
+export async function handleResponse<T>(res: Response): Promise<T> {
+  const body = await safeJson(res);
+
+  if (!res.ok) {
+    const msg =
+      body?.error || body?.message || res.statusText || "Request failed";
+    throw new Error(msg);
+  }
+  return body as T;
 }
 
-// Sales User จากตาราง users (role: sales, salescoordinator)
-export interface SalesUser {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  role: 'sales' | 'salescoordinator';
-  department?: string;
-  isActive: boolean;
+// =======================
+// 3) Query Keys (แนะนำให้รวม token กัน cache ข้าม user)
+// =======================
+export const qk = {
+  me: (token: string | null) => ["me", token] as const,
+  users: (token: string | null) => ["users", token] as const,
+
+  bookings: (params: unknown, token: string | null) =>
+    ["bookings", params, token] as const,
+  booking: (id: string, token: string | null) =>
+    ["booking", id, token] as const,
+
+  roomTypes: (token: string | null) => ["room-types", token] as const,
+  roomType: (id: string, token: string | null) => ["room-types", id, token] as const,
+
+  companies: (params: unknown, token: string | null) =>
+    ["companies", params, token] as const,
+  company: (id: string, token: string | null) => ["company", id, token] as const,
+
+  salesUsers: (token: string | null) => ["sales-users", token] as const,
+  salesUser: (id: string, token: string | null) => ["sales-users", id, token] as const,
+
+  blackoutDates: (token: string | null) => ["blackout-dates", token] as const,
+  minimumStayRules: (token: string | null) => ["minimum-stay-rules", token] as const,
+};
+
+// =======================
+// 4) AUTH (functions + queryOptions)
+// =======================
+
+export type LoginJson = InferRequestType<typeof api.auth.login.$post>["json"];
+export type LoginRes = InferResponseType<typeof api.auth.login.$post>;
+
+export const login = async (json: LoginJson) => {
+  const res = await api.auth.login.$post({ json });
+  return handleResponse<LoginRes>(res);
+};
+
+export type RegisterJson = InferRequestType<typeof api.auth.register.$post>["json"];
+export type RegisterRes = InferResponseType<typeof api.auth.register.$post>;
+
+export const register = async (json: RegisterJson) => {
+  const res = await api.auth.register.$post({ json });
+  return handleResponse<RegisterRes>(res);
+};
+
+export const logout = async () => {
+  const res = await api.auth.logout.$post();
+  return handleResponse<InferResponseType<typeof api.auth.logout.$post>>(res);
+};
+
+// current user (me)
+export const userQueryOptions = () => {
+  const token = getAuthToken();
+  return queryOptions({
+    queryKey: qk.me(token),
+    enabled: !!token,
+    queryFn: async () => {
+      const res = await api.users.me.$get(undefined, {
+        headers: authHeaders(token),
+      });
+      // ปรับ type ตรงนี้ให้ตรง response จริงของคุณ
+      return handleResponse<{ data: CreateUserInput }>(res);
+    },
+    staleTime: 1000 * 60 * 5,
+  });
+};
+
+// =======================
+// 5) USERS (Query + Mutations)
+// =======================
+
+export const usersQueryOptions = () => {
+  const token = getAuthToken();
+  return queryOptions({
+    queryKey: qk.users(token),
+    enabled: !!token,
+    queryFn: async () => {
+      const res = await api.users.$get(undefined, {
+        headers: authHeaders(token),
+      });
+      return handleResponse<{ users: CreateUserInput[] }>(res);
+    },
+    staleTime: 1000 * 60,
+  });
+};
+
+export function useCreateUser() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Json = InferRequestType<typeof api.users.$post>["json"];
+  type Res = InferResponseType<typeof api.users.$post>;
+
+  return useMutation({
+    mutationFn: async (json: Json) => {
+      const res = await api.users.$post({
+        json,
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
 }
 
-// Legacy SalesOwner type (for backward compatibility)
-export interface SalesOwner {
-  id: string;
-  name: string;
-  email: string;
-  phone?: string;
-  isActive?: boolean;
-  createdAt?: string;
-  updatedAt?: string;
+export function useUpdateUser() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Json = InferRequestType<typeof api.users[":id"]["$patch"]>["json"];
+  type Res = InferResponseType<typeof api.users[":id"]["$patch"]>;
+
+  return useMutation({
+    mutationFn: async (vars: { id: string; json: Json }) => {
+      const res = await api.users[":id"].$patch({
+        param: { id: vars.id },
+        json: vars.json,
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+      qc.invalidateQueries({ queryKey: ["user", vars.id] });
+    },
+  });
 }
 
-export interface Company {
-  id: string;
-  name: string;
-  contactPerson?: string;
-  email?: string;
-  phone?: string;
-  address?: string;
-  taxId?: string;
-  creditTerms?: number;
-  isActive?: boolean;
-  createdAt?: string;
-  updatedAt?: string;
+export function useDeleteUser() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Res = InferResponseType<typeof api.users[":id"]["$delete"]>;
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.users[":id"].$delete({
+        param: { id },
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["users"] });
+    },
+  });
 }
 
-export interface BlackoutDate {
-  id: string;
-  date: string;
-  reason?: string;
-  createdAt?: string;
-}
-
-export interface MinimumStayRule {
-  id: string;
-  startDate: string;
-  endDate: string;
-  minNights: number;
-  createdAt?: string;
-  updatedAt?: string;
-}
-
-export interface PaginationInfo {
-  page: number;
-  limit: number;
-  total: number;
-  totalPages: number;
-}
-
-export interface ApiResponse<T> {
-  success: boolean;
-  data?: T;
-  error?: string;
-  message?: string;
-  pagination?: PaginationInfo;
-}
-
-export interface CreateBookingPayload {
-  customerName: string;
-  company: string;
-  saleOwner: string;
-  saleOwnerId?: string;
-  phone: string;
-  email: string;
-  checkIn: string;
-  checkOut: string;
-  roomType: string;
-  numberOfRooms: number;
-  rate: number;
-  paymentMethod: string;
-  documents?: string[];
-  notes?: string;
-}
-
-export interface UpdateBookingPayload {
-  customerName?: string;
-  company?: string;
-  saleOwner?: string;
-  saleOwnerId?: string;
-  phone?: string;
-  email?: string;
-  checkIn?: string;
-  checkOut?: string;
-  roomType?: string;
-  numberOfRooms?: number;
-  rate?: number;
-  paymentMethod?: string;
-  status?: 'PENDING' | 'CONFIRMED' | 'CANCELLED' | 'VOID';
-  notes?: string;
-}
-
-export interface CancelBookingPayload {
-  reason: string;
-  cancelledBy: string;
-  cancelDocuments?: string[];
-}
+// =======================
+// 6) BOOKINGS (Query + Mutations)  ✅ เลิกใช้ apiRequest
+// =======================
 
 export interface ListBookingsParams {
   status?: "PENDING" | "CONFIRMED" | "CANCELLED" | "VOID";
@@ -384,357 +227,555 @@ export interface ListBookingsParams {
   limit?: number;
 }
 
-export interface CheckAvailabilityPayload {
+export interface Booking {
+  id: string;
+  bookingId: string;
+  customerName: string;
+  company: string;
+  saleOwner: string;
+  phone: string;
+  email: string;
   checkIn: string;
   checkOut: string;
   roomType: string;
+  numberOfRooms: number;
+  rate: number | string;
+  paymentMethod: string;
+  status: "PENDING" | "CONFIRMED" | "CANCELLED" | "VOID";
+  notes?: string;
+  createdAt: string;
+  updatedAt?: string;
+  amendmentLogs?: {
+    timestamp: string;
+    amendedBy: string;
+    changes: {
+      field: string;
+      before: any;
+      after: any;
+    }[];
+  }[];
 }
 
-// ============ API Helper ============
+export interface RoomType {
+  id: string;
+  name: string;
+  totalRooms: number;
+  baseRate: string;
+}
 
-async function apiRequest<T>(
-  endpoint: string,
-  options: RequestInit = {}
-): Promise<ApiResponse<T>> {
-  const url = `${API_BASE_URL}${endpoint}`;
+export interface SalesUser {
+  id: string;
+  name: string;
+  email: string;
+  phone?: string;
+  role: string;
+}
 
-  const defaultHeaders: HeadersInit = {
-    'Content-Type': 'application/json',
-  };
-
-  // Add auth token if available
+export const getBookingQueryOptions = (params: ListBookingsParams = {}) => {
   const token = getAuthToken();
-  if (token) {
-    (defaultHeaders as Record<string, string>)['Authorization'] = `Bearer ${token}`;
-  }
-
-  try {
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...defaultHeaders,
-        ...options.headers,
-      },
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
+  return queryOptions({
+    queryKey: ["bookings", params, token],
+    enabled: !!token,
+    queryFn: async () => {
+      const res = await api.bookings.$get(
+        { query: params },
+        { headers: authHeaders(token) }
+      );
+      const json = await res.json();
+      // Backend returns { success: true, data: { data: [...], pagination: {...} } }
+      const result = json?.data;
       return {
-        success: false,
-        error: data.error || data.message || `HTTP error ${response.status}`,
+        data: Array.isArray(result?.data) ? result.data : [],
+        pagination: result?.pagination,
       };
-    }
+    },
+  });
+};
 
-    return data;
-  } catch (error: any) {
-    return {
-      success: false,
-      error: error.message || 'Network error',
-    };
-  }
+export const bookingsQueryOptions = (params: ListBookingsParams = {}) => {
+  const token = getAuthToken();
+  return queryOptions({
+    queryKey: ["bookings", params, token],
+    enabled: !!token,
+    queryFn: async () => {
+      const res = await api.bookings.$get(
+        { query: params },
+        { headers: authHeaders(token) }
+      );
+      const json = await res.json();
+      const result = json?.data;
+      return {
+        data: Array.isArray(result?.data) ? result.data : [],
+        pagination: result?.pagination,
+      };
+    },
+  });
+};
+
+export const bookingQueryOptions = (id: string) => {
+  const token = getAuthToken();
+  return queryOptions({
+    queryKey: qk.booking(id, token),
+    enabled: !!token && !!id,
+    queryFn: async () => {
+      const res = await api.bookings[":id"].$get(
+        { param: { id } },
+        { headers: authHeaders(token) }
+      );
+      return handleResponse<InferResponseType<typeof api.bookings[":id"]["$get"]>>(res);
+    },
+  });
+};
+
+export function useCreateBooking() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Json = InferRequestType<typeof api.bookings.$post>["json"];
+  type Res = InferResponseType<typeof api.bookings.$post>;
+
+  return useMutation({
+    mutationFn: async (json: Json) => {
+      const res = await api.bookings.$post({
+        json,
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+    },
+  });
 }
 
-// ============ Bookings API ============
+export function useUpdateBooking() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
 
-export const bookingsApi = {
-  list: (params: ListBookingsParams = {}) => {
-    const searchParams = new URLSearchParams();
-    Object.entries(params).forEach(([key, value]) => {
-      if (value !== undefined) searchParams.set(key, String(value));
-    });
-    const query = searchParams.toString();
-    return apiRequest<Booking[]>(query ? `/bookings?${query}` : "/bookings");
-  },
+  type Json = InferRequestType<typeof api.bookings[":id"]["$patch"]>["json"];
+  type Res = InferResponseType<typeof api.bookings[":id"]["$patch"]>;
 
-  get: async (bookingId: string): Promise<ApiResponse<Booking>> => {
-    return apiRequest<Booking>(`/bookings/${bookingId}`);
-  },
-
-  create: async (payload: CreateBookingPayload): Promise<ApiResponse<Booking>> => {
-    return apiRequest<Booking>('/bookings', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  },
-
-  update: async (bookingId: string, payload: UpdateBookingPayload): Promise<ApiResponse<Booking>> => {
-    return apiRequest<Booking>(`/bookings/${bookingId}`, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
-  },
-
-  delete: async (bookingId: string): Promise<ApiResponse<{ message: string }>> => {
-    return apiRequest<{ message: string }>(`/bookings/${bookingId}`, {
-      method: 'DELETE',
-    });
-  },
-
-  confirm: async (bookingId: string): Promise<ApiResponse<Booking>> => {
-    return apiRequest<Booking>(`/bookings/${bookingId}/confirm`, {
-      method: 'POST',
-    });
-  },
-
-  cancel: async (bookingId: string, payload: CancelBookingPayload): Promise<ApiResponse<Booking>> => {
-    return apiRequest<Booking>(`/bookings/${bookingId}/cancel`, {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  },
-
-  checkAvailability: async (payload: CheckAvailabilityPayload): Promise<ApiResponse<{ available: number }>> => {
-    return apiRequest<{ available: number }>('/bookings/check-availability', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  },
-};
-
-// ============ Room Types API ============
-
-export const roomTypesApi = {
-  list: async (): Promise<ApiResponse<RoomType[]>> => {
-    return apiRequest<RoomType[]>('/room-types');
-  },
-
-  get: async (id: string): Promise<ApiResponse<RoomType>> => {
-    return apiRequest<RoomType>(`/room-types/${id}`);
-  },
-
-  create: async (payload: Omit<RoomType, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<RoomType>> => {
-    return apiRequest<RoomType>('/room-types', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  },
-
-  update: async (id: string, payload: Partial<RoomType>): Promise<ApiResponse<RoomType>> => {
-    return apiRequest<RoomType>(`/room-types/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
-  },
-
-  delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
-    return apiRequest<{ message: string }>(`/room-types/${id}`, {
-      method: 'DELETE',
-    });
-  },
-};
-
-// ============ Sales Users API (NEW - จากตาราง users) ============
-// ดึง users ที่มี role เป็น sales หรือ salescoordinator
-
-export const salesUsersApi = {
-  // ดึงรายชื่อ Sales ทั้งหมด (active only)
-  list: async (): Promise<ApiResponse<SalesUser[]>> => {
-    return apiRequest<SalesUser[]>('/sales-users');
-  },
-
-  // ดึงข้อมูล Sales คนเดียว
-  get: async (id: string): Promise<ApiResponse<SalesUser>> => {
-    return apiRequest<SalesUser>(`/sales-users/${id}`);
-  },
-};
-
-// ============ Sales Owners API (Legacy - ถ้ายังใช้ตาราง sales_owners) ============
-
-export const salesOwnersApi = {
-  list: async (includeInactive: boolean = false): Promise<ApiResponse<SalesOwner[]>> => {
-    // ใช้ salesUsersApi แทน (จากตาราง users)
-    const response = await salesUsersApi.list();
-    
-    // Map SalesUser to SalesOwner format for backward compatibility
-    if (response.success && response.data) {
-      const mappedData: SalesOwner[] = response.data.map(user => ({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        phone: user.phone,
-        isActive: user.isActive,
-      }));
-      return { ...response, data: mappedData };
-    }
-    
-    return response as ApiResponse<SalesOwner[]>;
-  },
-
-  get: async (id: string): Promise<ApiResponse<SalesOwner>> => {
-    const response = await salesUsersApi.get(id);
-    
-    if (response.success && response.data) {
-      const mappedData: SalesOwner = {
-        id: response.data.id,
-        name: response.data.name,
-        email: response.data.email,
-        phone: response.data.phone,
-        isActive: response.data.isActive,
-      };
-      return { ...response, data: mappedData };
-    }
-    
-    return response as ApiResponse<SalesOwner>;
-  },
-
-  // Note: create, update, delete should go through users API with admin permission
-  create: async (payload: Omit<SalesOwner, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<SalesOwner>> => {
-    console.warn('salesOwnersApi.create is deprecated. Use users API to create sales users.');
-    return { success: false, error: 'Use users API to create sales users' };
-  },
-
-  update: async (id: string, payload: Partial<SalesOwner>): Promise<ApiResponse<SalesOwner>> => {
-    console.warn('salesOwnersApi.update is deprecated. Use users API to update sales users.');
-    return { success: false, error: 'Use users API to update sales users' };
-  },
-
-  delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
-    console.warn('salesOwnersApi.delete is deprecated. Use users API to delete sales users.');
-    return { success: false, error: 'Use users API to delete sales users' };
-  },
-};
-
-// ============ Companies API ============
-
-export const companiesApi = {
-  list: async (includeInactive: boolean = false): Promise<ApiResponse<Company[]>> => {
-    const endpoint = includeInactive ? '/companies?includeInactive=true' : '/companies';
-    return apiRequest<Company[]>(endpoint);
-  },
-
-  get: async (id: string): Promise<ApiResponse<Company>> => {
-    return apiRequest<Company>(`/companies/${id}`);
-  },
-
-  create: async (payload: Omit<Company, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<Company>> => {
-    return apiRequest<Company>('/companies', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  },
-
-  update: async (id: string, payload: Partial<Company>): Promise<ApiResponse<Company>> => {
-    return apiRequest<Company>(`/companies/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
-  },
-
-  delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
-    return apiRequest<{ message: string }>(`/companies/${id}`, {
-      method: 'DELETE',
-    });
-  },
-};
-
-// ============ Blackout Dates API ============
-
-export const blackoutDatesApi = {
-  list: async (): Promise<ApiResponse<BlackoutDate[]>> => {
-    return apiRequest<BlackoutDate[]>('/blackout-dates');
-  },
-
-  create: async (payload: Omit<BlackoutDate, 'id' | 'createdAt'>): Promise<ApiResponse<BlackoutDate>> => {
-    return apiRequest<BlackoutDate>('/blackout-dates', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  },
-
-  delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
-    return apiRequest<{ message: string }>(`/blackout-dates/${id}`, {
-      method: 'DELETE',
-    });
-  },
-};
-
-// ============ Minimum Stay Rules API ============
-
-export const minimumStayRulesApi = {
-  list: async (): Promise<ApiResponse<MinimumStayRule[]>> => {
-    return apiRequest<MinimumStayRule[]>('/minimum-stay-rules');
-  },
-
-  create: async (payload: Omit<MinimumStayRule, 'id' | 'createdAt' | 'updatedAt'>): Promise<ApiResponse<MinimumStayRule>> => {
-    return apiRequest<MinimumStayRule>('/minimum-stay-rules', {
-      method: 'POST',
-      body: JSON.stringify(payload),
-    });
-  },
-
-  update: async (id: string, payload: Partial<MinimumStayRule>): Promise<ApiResponse<MinimumStayRule>> => {
-    return apiRequest<MinimumStayRule>(`/minimum-stay-rules/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(payload),
-    });
-  },
-
-  delete: async (id: string): Promise<ApiResponse<{ message: string }>> => {
-    return apiRequest<{ message: string }>(`/minimum-stay-rules/${id}`, {
-      method: 'DELETE',
-    });
-  },
-};
-
-
-
-// ============ Query Options ============
-
-export const getBookingsQueryOptions = (params: ListBookingsParams = {}) =>
-  queryOptions({
-    queryKey: ["bookings", params],
-    queryFn: () => bookingsApi.list(params),
-    staleTime: 1000 * 60 * 5,
+  return useMutation({
+    mutationFn: async (vars: { id: string; json: Json }) => {
+      const res = await api.bookings[":id"].$patch({
+        param: { id: vars.id },
+        json: vars.json,
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["booking", vars.id] });
+    },
   });
+}
 
-export const getBookingQueryOptions = (id: string) =>
-  queryOptions({
-    queryKey: ["booking", id],
-    queryFn: () => bookingsApi.get(id),
-    enabled: !!id,
+export function useDeleteBooking() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Res = InferResponseType<typeof api.bookings[":id"]["$delete"]>;
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.bookings[":id"].$delete({
+        param: { id },
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+    },
   });
+}
 
-export const getRoomTypesQueryOptions = queryOptions({
-  queryKey: ["room-types"],
-  queryFn: () => roomTypesApi.list(),
-  staleTime: 1000 * 60 * 10,
-});
+// confirm/cancel/check-availability (ถ้ามี route ใน ApiRoutes)
+export function useConfirmBooking() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
 
-export const getCompaniesQueryOptions = queryOptions({
-  queryKey: ["companies"],
-  queryFn: () => companiesApi.list(),
-  staleTime: 1000 * 60 * 10,
-});
+  type Res = InferResponseType<typeof api.bookings[":id"]["confirm"]["$post"]>;
 
-export const getSalesOwnersQueryOptions = queryOptions({
-  queryKey: ["sales-owners"],
-  queryFn: () => salesOwnersApi.list(),
-  staleTime: 1000 * 60 * 10,
-});
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.bookings[":id"].confirm.$post(
+        { param: { id } },
+        { headers: authHeaders(token) }
+      );
+      return handleResponse<Res>(res);
+    },
+    onSuccess: (_data, id) => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["booking", id] });
+    },
+  });
+}
 
-export const getBlackoutDatesQueryOptions = queryOptions({
-  queryKey: ["blackout-dates"],
-  queryFn: () => blackoutDatesApi.list(),
-  staleTime: 1000 * 60 * 10,
-});
+export function useCancelBooking() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
 
-export const getMinimumStayRulesQueryOptions = queryOptions({
-  queryKey: ["minimum-stay-rules"],
-  queryFn: () => minimumStayRulesApi.list(),
-  staleTime: 1000 * 60 * 10,
-});
+  type Json = InferRequestType<typeof api.bookings[":id"]["cancel"]["$post"]>["json"];
+  type Res = InferResponseType<typeof api.bookings[":id"]["cancel"]["$post"]>;
 
-// ============ Export All ============
+  return useMutation({
+    mutationFn: async (vars: { id: string; json: Json }) => {
+      const res = await api.bookings[":id"].cancel.$post(
+        { param: { id: vars.id }, json: vars.json },
+        { headers: authHeaders(token) }
+      );
+      return handleResponse<Res>(res);
+    },
+    onSuccess: (_data, vars) => {
+      qc.invalidateQueries({ queryKey: ["bookings"] });
+      qc.invalidateQueries({ queryKey: ["booking", vars.id] });
+    },
+  });
+}
 
-export const api = {
-  bookings: bookingsApi,
-  roomTypes: roomTypesApi,
-  salesUsers: salesUsersApi,  // NEW
-  salesOwners: salesOwnersApi, // Legacy (maps to salesUsers)
-  companies: companiesApi,
-  blackoutDates: blackoutDatesApi,
-  minimumStayRules: minimumStayRulesApi,
+export function useCheckAvailability() {
+  const token = getAuthToken();
+
+  type Json = InferRequestType<typeof api.bookings["check-availability"]["$post"]>["json"];
+  type Res = InferResponseType<typeof api.bookings["check-availability"]["$post"]>;
+
+  return useMutation({
+    mutationFn: async (json: Json) => {
+      const res = await api.bookings["check-availability"].$post(
+        { json },
+        { headers: authHeaders(token) }
+      );
+      return handleResponse<Res>(res);
+    },
+  });
+}
+
+// =======================
+// 7) ROOM TYPES (Query + Mutations)
+// =======================
+
+export const roomTypesQueryOptions = () => {
+  const token = getAuthToken();
+  return queryOptions({
+    queryKey: qk.roomTypes(token),
+    enabled: !!token,
+    queryFn: async () => {
+      const res = await api["room-types"].$get(undefined, {
+        headers: authHeaders(token),
+      });
+      return handleResponse<InferResponseType<typeof api["room-types"]["$get"]>>(res);
+    },
+    staleTime: 1000 * 60 * 10,
+  });
 };
 
-export default api;
+export function useCreateRoomType() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Json = InferRequestType<typeof api["room-types"]["$post"]>["json"];
+  type Res = InferResponseType<typeof api["room-types"]["$post"]>;
+
+  return useMutation({
+    mutationFn: async (json: Json) => {
+      const res = await api["room-types"].$post({
+        json,
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["room-types"] }),
+  });
+}
+
+export function useUpdateRoomType() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Json = InferRequestType<typeof api["room-types"][":id"]["$patch"]>["json"];
+  type Res = InferResponseType<typeof api["room-types"][":id"]["$patch"]>;
+
+  return useMutation({
+    mutationFn: async (vars: { id: string; json: Json }) => {
+      const res = await api["room-types"][":id"].$patch({
+        param: { id: vars.id },
+        json: vars.json,
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["room-types"] });
+      qc.invalidateQueries({ queryKey: ["room-types", vars.id] });
+    },
+  });
+}
+
+export function useDeleteRoomType() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Res = InferResponseType<typeof api["room-types"][":id"]["$delete"]>;
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api["room-types"][":id"].$delete({
+        param: { id },
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["room-types"] }),
+  });
+}
+
+// =======================
+// 8) COMPANIES (คุณทำถูกแล้ว แค่เติม auth + type ให้ชัด)
+// =======================
+
+export const companiesQueryOptions = (
+  params: InferRequestType<typeof api.companies.$get>["query"] = {}
+) => {
+  const token = getAuthToken();
+  return queryOptions({
+    queryKey: qk.companies(params, token),
+    enabled: !!token,
+    queryFn: async () => {
+      const res = await api.companies.$get(
+        { query: params },
+        { headers: authHeaders(token) }
+      );
+      return handleResponse<InferResponseType<typeof api.companies.$get>>(res);
+    },
+    staleTime: 1000 * 60 * 10,
+    placeholderData: keepPreviousData,
+  });
+};
+
+export const companyQueryOptions = (id: string) => {
+  const token = getAuthToken();
+  return queryOptions({
+    queryKey: qk.company(id, token),
+    enabled: !!token && !!id,
+    queryFn: async () => {
+      const res = await api.companies[":id"].$get(
+        { param: { id } },
+        { headers: authHeaders(token) }
+      );
+      return handleResponse<InferResponseType<typeof api.companies[":id"]["$get"]>>(res);
+    },
+  });
+};
+
+export function useCreateCompany() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Json = InferRequestType<typeof api.companies.$post>["json"];
+  type Res = InferResponseType<typeof api.companies.$post>;
+
+  return useMutation({
+    mutationFn: async (json: Json) => {
+      const res = await api.companies.$post({
+        json,
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["companies"] }),
+  });
+}
+
+export function useUpdateCompany() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Json = InferRequestType<typeof api.companies[":id"]["$patch"]>["json"];
+  type Res = InferResponseType<typeof api.companies[":id"]["$patch"]>;
+
+  return useMutation({
+    mutationFn: async (vars: { id: string; json: Json }) => {
+      const res = await api.companies[":id"].$patch({
+        param: { id: vars.id },
+        json: vars.json,
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: (_d, vars) => {
+      qc.invalidateQueries({ queryKey: ["companies"] });
+      qc.invalidateQueries({ queryKey: ["company", vars.id] });
+    },
+  });
+}
+
+export function useDeleteCompany() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Res = InferResponseType<typeof api.companies[":id"]["$delete"]>;
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api.companies[":id"].$delete({
+        param: { id },
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["companies"] }),
+  });
+}
+
+// =======================
+// 9) SALES USERS (แทน salesOwnersApi/list ที่ใช้ fetch เดิม)
+// =======================
+
+export const salesUsersQueryOptions = () => {
+  const token = getAuthToken();
+  return queryOptions({
+    queryKey: qk.salesUsers(token),
+    enabled: !!token,
+    queryFn: async () => {
+      const res = await api["sales-users"].$get(undefined, {
+        headers: authHeaders(token),
+      });
+      return handleResponse<InferResponseType<typeof api["sales-users"]["$get"]>>(res);
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+};
+
+// =======================
+// 10) BLACKOUT DATES (เลิก apiRequest)
+// =======================
+
+export const blackoutDatesQueryOptions = () => {
+  const token = getAuthToken();
+  return queryOptions({
+    queryKey: qk.blackoutDates(token),
+    enabled: !!token,
+    queryFn: async () => {
+      const res = await api["blackout-dates"].$get(undefined, {
+        headers: authHeaders(token),
+      });
+      return handleResponse<InferResponseType<typeof api["blackout-dates"]["$get"]>>(res);
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+};
+
+export function useCreateBlackoutDate() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Json = InferRequestType<typeof api["blackout-dates"]["$post"]>["json"];
+  type Res = InferResponseType<typeof api["blackout-dates"]["$post"]>;
+
+  return useMutation({
+    mutationFn: async (json: Json) => {
+      const res = await api["blackout-dates"].$post({
+        json,
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["blackout-dates"] }),
+  });
+}
+
+export function useDeleteBlackoutDate() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Res = InferResponseType<typeof api["blackout-dates"][":id"]["$delete"]>;
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api["blackout-dates"][":id"].$delete({
+        param: { id },
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["blackout-dates"] }),
+  });
+}
+
+// =======================
+// 11) MINIMUM STAY RULES (เลิก apiRequest)
+// =======================
+
+export const minimumStayRulesQueryOptions = () => {
+  const token = getAuthToken();
+  return queryOptions({
+    queryKey: qk.minimumStayRules(token),
+    enabled: !!token,
+    queryFn: async () => {
+      const res = await api["minimum-stay-rules"].$get(undefined, {
+        headers: authHeaders(token),
+      });
+      return handleResponse<InferResponseType<typeof api["minimum-stay-rules"]["$get"]>>(res);
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+};
+
+export function useCreateMinimumStayRule() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Json = InferRequestType<typeof api["minimum-stay-rules"]["$post"]>["json"];
+  type Res = InferResponseType<typeof api["minimum-stay-rules"]["$post"]>;
+
+  return useMutation({
+    mutationFn: async (json: Json) => {
+      const res = await api["minimum-stay-rules"].$post({
+        json,
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["minimum-stay-rules"] }),
+  });
+}
+
+export function useUpdateMinimumStayRule() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Json = InferRequestType<typeof api["minimum-stay-rules"][":id"]["$patch"]>["json"];
+  type Res = InferResponseType<typeof api["minimum-stay-rules"][":id"]["$patch"]>;
+
+  return useMutation({
+    mutationFn: async (vars: { id: string; json: Json }) => {
+      const res = await api["minimum-stay-rules"][":id"].$patch({
+        param: { id: vars.id },
+        json: vars.json,
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["minimum-stay-rules"] }),
+  });
+}
+
+export function useDeleteMinimumStayRule() {
+  const qc = useQueryClient();
+  const token = getAuthToken();
+
+  type Res = InferResponseType<typeof api["minimum-stay-rules"][":id"]["$delete"]>;
+
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const res = await api["minimum-stay-rules"][":id"].$delete({
+        param: { id },
+        headers: authHeaders(token),
+      });
+      return handleResponse<Res>(res);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["minimum-stay-rules"] }),
+  });
+}

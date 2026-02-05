@@ -1,6 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { useState, useMemo } from "react";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery } from "@tanstack/react-query";
 import {
   ArrowLeft,
   Search,
@@ -21,10 +21,14 @@ import {
 } from "lucide-react";
 
 import {
-  bookingsApi,
-  getBookingsQueryOptions,
-  getRoomTypesQueryOptions,
-  getSalesOwnersQueryOptions,
+  getBookingQueryOptions,
+  roomTypesQueryOptions,
+  salesUsersQueryOptions,
+  useCreateBooking,
+  useUpdateBooking,
+  useDeleteBooking,
+  useConfirmBooking,
+  useCancelBooking,
   type Booking,
   type ListBookingsParams,
 } from "@/lib/api";
@@ -53,8 +57,6 @@ export const Route = createFileRoute("/bookings/")({
 });
 
 function BookingTable() {
-  const queryClient = useQueryClient();
-
   // Filters and search
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -97,113 +99,23 @@ function BookingTable() {
     isLoading,
     error,
     refetch,
-  } = useQuery(getBookingsQueryOptions(queryParams));
+  } = useQuery(getBookingQueryOptions(queryParams));
 
-  const { data: roomTypesRes } = useQuery(getRoomTypesQueryOptions);
-  const { data: salesOwnersRes } = useQuery(getSalesOwnersQueryOptions);
+  const { data: roomTypesRes } = useQuery(roomTypesQueryOptions());
+  const { data: salesOwnersRes } = useQuery(salesUsersQueryOptions());
 
   const bookings = bookingsRes?.data || [];
   const roomTypes = roomTypesRes?.data || [];
   const salesOwners = salesOwnersRes?.data || [];
   const totalItems = bookingsRes?.pagination?.total || bookings.length;
 
-  // ============ Mutations ============
+  // ============ Mutations (using TanStack Query hooks) ============
 
-  const createBookingMutation = useMutation({
-    mutationFn: bookingsApi.create,
-    onSuccess: (response) => {
-      if (response.success) {
-        toast.success("สร้างการจองสำเร็จ", {
-          description: `Booking ID: ${response.data?.bookingId}`,
-        });
-        queryClient.invalidateQueries({ queryKey: ["bookings"] });
-        setIsAddingNew(false);
-        setFormData({});
-        setFormErrors([]);
-      } else {
-        toast.error("เกิดข้อผิดพลาดในการสร้างการจอง", {
-          description: response.error,
-        });
-      }
-    },
-    onError: (err: Error) => {
-      toast.error("เกิดข้อผิดพลาดในการสร้างการจอง", { 
-        description: err.message,
-      });
-    },
-  });
-
-  const updateBookingMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof bookingsApi.update>[1] }) =>
-      bookingsApi.update(id, data),
-    onSuccess: (response) => {
-      if (response.success) {
-        toast.success("แก้ไขการจองสำเร็จ", {
-          description: `Booking ID: ${response.data?.bookingId}`, 
-        });
-        queryClient.invalidateQueries({ queryKey: ["bookings"] });
-        setEditingBooking(null);
-        setFormData({});
-        setFormErrors([]);
-      } else {
-        toast.error("เกิดข้อผิดพลาดในการแก้ไขการจอง", {
-          description: response.error,
-        });
-      }
-    },
-    onError: (err: Error) => {
-      toast.error("เกิดข้อผิดพลาดในการแก้ไขการจอง", { 
-        description: err.message,
-      });
-    },
-  });
-
-  const deleteBookingMutation = useMutation({
-    mutationFn: bookingsApi.delete,
-    onSuccess: (response) => {
-      if (response.success) {
-        toast.success("ลบการจองสำเร็จ");
-        queryClient.invalidateQueries({ queryKey: ["bookings"] });
-      } else {
-        toast.error("เกิดข้อผิดพลาดในการลบการจอง", {
-          description: response.error,
-        });
-      }
-    },
-  });
-
-  const confirmBookingMutation = useMutation({
-    mutationFn: bookingsApi.confirm,
-    onSuccess: (response) => {
-      if (response.success) {
-        toast.success("ยืนยันการจองสำเร็จ", {
-          description: `Booking ID: ${response.data?.bookingId}`,
-        });
-        queryClient.invalidateQueries({ queryKey: ["bookings"] });
-      } else {
-        toast.error("เกิดข้อผิดพลาดในการยืนยันการจอง", {
-          description: response.error,
-        });
-      }
-    },
-  });
-
-  const cancelBookingMutation = useMutation({
-    mutationFn: ({ id, data }: { id: string; data: Parameters<typeof bookingsApi.cancel>[1] }) =>
-      bookingsApi.cancel(id, data),
-    onSuccess: (response) => {
-      if (response.success) {
-        toast.success("ยกเลิกการจองสำเร็จ", {
-          description: `Booking ID: ${response.data?.bookingId}`,
-        });
-        queryClient.invalidateQueries({ queryKey: ["bookings"] });
-      } else {
-        toast.error("เกิดข้อผิดพลาดในการยกเลิกการจอง", {
-          description: response.error,
-        });
-      }
-    },
-  });
+  const createBookingMutation = useCreateBooking();
+  const updateBookingMutation = useUpdateBooking();
+  const deleteBookingMutation = useDeleteBooking();
+  const confirmBookingMutation = useConfirmBooking();
+  const cancelBookingMutation = useCancelBooking();
 
   const isSubmitting =
     createBookingMutation.isPending ||
@@ -296,12 +208,12 @@ function BookingTable() {
   const handleCancel = async (booking: Booking) => {
     const reason = prompt("กรุณาระบุเหตุผลในการยกเลิก:");
     if (!reason) return;
- toast.promise(
+    toast.promise(
       new Promise((resolve, reject) => {
         cancelBookingMutation.mutate(
           {
             id: booking.id,
-            data: {
+            json: {
               cancelReason: reason,
               cancelledBy: "Admin",
             },
@@ -403,15 +315,8 @@ function BookingTable() {
       numberOfRooms: Number(formData.numberOfRooms),
       rate: Number(formData.rate),
       paymentMethod: formData.paymentMethod!,
-      ...(formData.notes && { notes: formData.notes }),  
+      ...(formData.notes && { notes: formData.notes }),
     };
-
-      // Debug: ดู payload ก่อนส่ง
-    console.log("Payload:", JSON.stringify(payload, null, 2));
-    console.log("Types:", {
-      numberOfRooms: typeof payload.numberOfRooms,
-      rate: typeof payload.rate,
-    });
 
     if (isAddingNew) {
       toast.promise(
@@ -420,6 +325,11 @@ function BookingTable() {
             onSuccess: (response) => {
               if (response.success) {
                 resolve(response);
+                setIsAddingNew(false);
+                setFormData({});
+                setFormErrors([]);
+                refetch();
+                setCurrentPage(1);
               } else {
                 reject(new Error(response.error));
               }
@@ -432,17 +342,9 @@ function BookingTable() {
           success: (response: any) => `สร้างการจองสำเร็จ: ${response.data?.bookingId}`,
           error: (err) => `สร้างการจองไม่สำเร็จ: ${err.message}`,
         }
-      )
+      );
     } else if (editingBooking) {
-    //   updateBookingMutation.mutate({
-    //     id: editingBooking.id,
-    //     data: {
-    //       ...payload,
-    //       status: formData.status,
-    //     },
-    //   });
-    // }
-    const updatePayload = {
+      const updatePayload = {
         ...payload,
         ...(formData.status && { status: formData.status }),
       };
@@ -452,12 +354,16 @@ function BookingTable() {
           updateBookingMutation.mutate(
             {
               id: editingBooking.id,
-              data: updatePayload,
+              json: updatePayload,
             },
             {
               onSuccess: (response) => {
                 if (response.success) {
                   resolve(response);
+                  setEditingBooking(null);
+                  setFormData({});
+                  setFormErrors([]);
+                  refetch();
                 } else {
                   reject(new Error(response.error));
                 }
@@ -870,15 +776,15 @@ function BookingTable() {
                             )}
                             {(booking.status === "PENDING" ||
                               booking.status === "CONFIRMED") && (
-                              <button
-                                onClick={() => handleCancel(booking)}
-                                disabled={isSubmitting}
-                                className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors disabled:opacity-50"
-                                title="ยกเลิก"
-                              >
-                                <XCircle className="w-4 h-4" />
-                              </button>
-                            )}
+                                <button
+                                  onClick={() => handleCancel(booking)}
+                                  disabled={isSubmitting}
+                                  className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors disabled:opacity-50"
+                                  title="ยกเลิก"
+                                >
+                                  <XCircle className="w-4 h-4" />
+                                </button>
+                              )}
                             <button
                               onClick={() => handleEdit(booking)}
                               className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"

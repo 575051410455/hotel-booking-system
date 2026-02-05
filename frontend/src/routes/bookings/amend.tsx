@@ -1,24 +1,25 @@
 import { createFileRoute, Link } from '@tanstack/react-router'
 import { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, 
-  Search, 
-  Edit, 
-  AlertCircle, 
-  Check, 
-  FileText, 
-  Clock, 
+import {
+  ArrowLeft,
+  Search,
+  Edit,
+  AlertCircle,
+  Check,
+  FileText,
+  Clock,
   User as UserIcon,
   Loader2,
   X
 } from 'lucide-react';
-import { 
-  bookingsApi, 
-  roomTypesApi, 
-  salesOwnersApi,
-  type Booking, 
-  type RoomType, 
-  type SalesOwner 
+import { useQuery } from '@tanstack/react-query';
+import {
+  roomTypesQueryOptions,
+  salesUsersQueryOptions,
+  api,
+  authHeaders,
+  getAuthToken,
+  type Booking,
 } from '@/lib/api';
 import { useAuthStore } from '@/hooks/auth';
 
@@ -29,7 +30,6 @@ interface AmendLog {
   before: any;
   after: any;
 }
-
 
 const paymentMethods = [
   'เงินสด',
@@ -50,10 +50,13 @@ function AmendBooking() {
   // Auth - ต้องอยู่บนสุดก่อน hooks อื่นๆ
   const { user: currentUser, accessToken } = useAuthStore();
 
-  // Data from API
-  const [roomTypes, setRoomTypes] = useState<RoomType[]>([]);
-  const [salesOwners, setSalesOwners] = useState<SalesOwner[]>([]);
-  const [isLoadingData, setIsLoadingData] = useState(true);
+  // Data from API using TanStack Query
+  const { data: roomTypesRes, isLoading: isLoadingRoomTypes } = useQuery(roomTypesQueryOptions());
+  const { data: salesOwnersRes, isLoading: isLoadingSalesOwners } = useQuery(salesUsersQueryOptions());
+
+  const roomTypes = roomTypesRes?.data || [];
+  const salesOwners = salesOwnersRes?.data || [];
+  const isLoadingData = isLoadingRoomTypes || isLoadingSalesOwners;
 
   // Search state
   const [searchKeyword, setSearchKeyword] = useState('');
@@ -71,43 +74,11 @@ function AmendBooking() {
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // ============ ALL HOOKS MUST BE ABOVE THIS LINE ============
-  
-  // Fetch reference data on mount
-  useEffect(() => {
-    const fetchData = async () => {
-      // Skip fetching if no user
-      if (!currentUser) return;
-      
-      setIsLoadingData(true);
-      try {
-        const [roomTypesRes, salesOwnersRes] = await Promise.all([
-          roomTypesApi.list(),
-          salesOwnersApi.list(),
-        ]);
-
-        if (roomTypesRes.success && roomTypesRes.data) {
-          setRoomTypes(roomTypesRes.data);
-        }
-
-        if (salesOwnersRes.success && salesOwnersRes.data) {
-          setSalesOwners(salesOwnersRes.data);
-        }
-      } catch (err) {
-        console.error('Error fetching data:', err);
-      } finally {
-        setIsLoadingData(false);
-      }
-    };
-
-    fetchData();
-  }, [currentUser]);
-
   // Debounced search
   useEffect(() => {
     // Skip if no user or no search keyword
     if (!currentUser) return;
-    
+
     const timer = setTimeout(() => {
       if (searchKeyword.trim()) {
         handleSearch();
@@ -184,10 +155,12 @@ function AmendBooking() {
     setError('');
 
     try {
-      const response = await bookingsApi.list({
-        search: searchKeyword,
-        limit: 20,
-      });
+      const token = getAuthToken();
+      const res = await api.bookings.$get(
+        { query: { search: searchKeyword, limit: 20 } },
+        { headers: authHeaders(token) }
+      );
+      const response = await res.json();
 
       if (response.success && response.data) {
         setSearchResults(response.data);
@@ -206,7 +179,12 @@ function AmendBooking() {
   const handleSelectBooking = async (booking: Booking) => {
     // Fetch fresh booking data
     try {
-      const response = await bookingsApi.get(booking.id);
+      const token = getAuthToken();
+      const res = await api.bookings[':id'].$get(
+        { param: { id: booking.id } },
+        { headers: authHeaders(token) }
+      );
+      const response = await res.json();
       if (response.success && response.data) {
         setSelectedBooking(response.data);
       } else {
@@ -246,64 +224,61 @@ function AmendBooking() {
 
     // Get the original value
     const originalValue = selectedBooking[field];
-    
+
     // Track the change
     if (originalValue !== value) {
-      const existingLogIndex = amendLogs.findIndex(log => log.field === getFieldLabel(field));
       const newLog: AmendLog = {
         field: getFieldLabel(field),
         before: originalValue,
         after: value,
       };
 
-      if (existingLogIndex >= 0) {
-        // Update existing log
-        const updatedLogs = [...amendLogs];
-        // If value is back to original, remove the log
-        if (value === originalValue) {
-          updatedLogs.splice(existingLogIndex, 1);
+      setAmendLogs(prevLogs => {
+        const existingLogIndex = prevLogs.findIndex(log => log.field === getFieldLabel(field));
+
+        if (existingLogIndex >= 0) {
+          // Update existing log
+          const updatedLogs = [...prevLogs];
+          // If value is back to original, remove the log
+          if (value === originalValue) {
+            updatedLogs.splice(existingLogIndex, 1);
+            return updatedLogs;
+          } else {
+            updatedLogs[existingLogIndex] = newLog;
+            return updatedLogs;
+          }
         } else {
-          updatedLogs[existingLogIndex] = newLog;
+          // Add new log
+          return [...prevLogs, newLog];
         }
-        setAmendLogs(updatedLogs);
-      } else {
-        // Add new log
-        setAmendLogs([...amendLogs, newLog]);
-      }
+      });
     } else {
       // Value is back to original, remove from logs
-      setAmendLogs(amendLogs.filter(log => log.field !== getFieldLabel(field)));
+      setAmendLogs(prevLogs => prevLogs.filter(log => log.field !== getFieldLabel(field)));
     }
 
-    setAmendments({
-      ...amendments,
+    setAmendments(prev => ({
+      ...prev,
       [field]: value,
-    });
+    }));
   };
 
+
+  // Renamed to avoid using 'canEditField' which might conflict if I missed something, but actually the original name is fine. 
+  // Sticking to original name for minimal diff, just using original implementation logic above.
   const canEditField = (field: string): boolean => {
     if (!selectedBooking) return false;
-
-    // Cannot edit cancelled bookings
-    if (selectedBooking.status === 'CANCELLED' || selectedBooking.status === 'VOID') {
-      return false;
-    }
-
-    // PENDING: can edit all fields
-    if (selectedBooking.status === 'PENDING') {
-      return true;
-    }
-
-    // CONFIRMED: limited edits
+    if (selectedBooking.status === 'CANCELLED' || selectedBooking.status === 'VOID') return false;
+    if (selectedBooking.status === 'PENDING') return true;
     if (selectedBooking.status === 'CONFIRMED') {
-      const limitedFields = ['customerName', 'phone', 'email', 'company', 'checkIn', 'checkOut', 'roomType', 'numberOfRooms'];
-      return limitedFields.includes(field);
+      return ['customerName', 'phone', 'email', 'company', 'checkIn', 'checkOut', 'roomType', 'numberOfRooms'].includes(field);
     }
-
     return false;
   };
 
+
   const getCurrentValue = (field: keyof Booking) => {
+    // using amendments directly here is fine as it's read during render
     if (amendments[field] !== undefined) {
       return amendments[field];
     }
@@ -329,7 +304,7 @@ function AmendBooking() {
     try {
       // Build the changes object for the API
       const changes: Record<string, any> = {};
-      
+
       if (amendments.customerName !== undefined) changes.customerName = amendments.customerName;
       if (amendments.company !== undefined) changes.company = amendments.company;
       if (amendments.phone !== undefined) changes.phone = amendments.phone;
@@ -345,7 +320,7 @@ function AmendBooking() {
       // Call the amend API endpoint
       const response = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/bookings/${selectedBooking.id}/amend`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${accessToken}`,
         },
@@ -403,7 +378,7 @@ function AmendBooking() {
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-6xl mx-auto">
         <Link
-            to='/dashboard'
+          to='/dashboard'
           className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-6 transition-colors"
         >
           <ArrowLeft className="w-5 h-5" />
@@ -423,17 +398,17 @@ function AmendBooking() {
           </div>
 
           {/* Success Message */}
-          {showSuccess && (
+          {showSuccess ? (
             <div className="mb-6 bg-green-50 border border-green-200 rounded-lg p-4">
               <div className="flex items-center gap-2 text-green-800">
                 <Check className="w-5 h-5" />
                 <p className="font-medium">แก้ไขการจองสำเร็จ!</p>
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* Error Message */}
-          {error && (
+          {error ? (
             <div className="mb-6 bg-red-50 border border-red-200 rounded-lg p-4">
               <div className="flex items-center gap-2 text-red-800">
                 <AlertCircle className="w-5 h-5" />
@@ -443,10 +418,10 @@ function AmendBooking() {
                 </button>
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* Search Section */}
-          {!selectedBooking && (
+          {!selectedBooking ? (
             <div>
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">ค้นหาการจอง</label>
@@ -466,21 +441,21 @@ function AmendBooking() {
                     disabled={isSearching}
                     className="px-6 py-3 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors disabled:opacity-50 flex items-center gap-2"
                   >
-                    {isSearching && <Loader2 className="w-4 h-4 animate-spin" />}
+                    {isSearching ? <Loader2 className="w-4 h-4 animate-spin" /> : null}
                     ค้นหา
                   </button>
                 </div>
               </div>
 
               {/* Search Results */}
-              {isSearching && (
+              {isSearching ? (
                 <div className="flex items-center justify-center py-8">
                   <Loader2 className="w-6 h-6 animate-spin text-orange-600" />
                   <span className="ml-2 text-gray-600">กำลังค้นหา...</span>
                 </div>
-              )}
+              ) : null}
 
-              {!isSearching && searchResults.length > 0 && (
+              {!isSearching && searchResults.length > 0 ? (
                 <div className="space-y-3">
                   <p className="text-sm text-gray-700">พบ {searchResults.length} รายการ</p>
                   {searchResults.map((booking) => (
@@ -507,18 +482,18 @@ function AmendBooking() {
                     </button>
                   ))}
                 </div>
-              )}
+              ) : null}
 
-              {!isSearching && searchKeyword && searchResults.length === 0 && (
+              {!isSearching && searchKeyword && searchResults.length === 0 ? (
                 <div className="text-center py-12 text-gray-500">
                   ไม่พบการจองที่ตรงกับคำค้นหา
                 </div>
-              )}
+              ) : null}
             </div>
-          )}
+          ) : null}
 
           {/* Amend Form */}
-          {selectedBooking && (
+          {selectedBooking ? (
             <div>
               {/* Current Booking Info */}
               <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-6">
@@ -535,20 +510,20 @@ function AmendBooking() {
                     {selectedBooking.status}
                   </span>
                 </div>
-                {selectedBooking.status === 'CONFIRMED' && (
+                {selectedBooking.status === 'CONFIRMED' ? (
                   <p className="text-xs text-blue-700 mt-2">
                     ⓘ การจองที่ยืนยันแล้วสามารถแก้ไขได้เฉพาะบางข้อมูล
                   </p>
-                )}
-                {(selectedBooking.status === 'CANCELLED' || selectedBooking.status === 'VOID') && (
+                ) : null}
+                {(selectedBooking.status === 'CANCELLED' || selectedBooking.status === 'VOID') ? (
                   <p className="text-xs text-red-700 mt-2">
                     ⓘ ไม่สามารถแก้ไขการจองที่ถูกยกเลิกได้
                   </p>
-                )}
+                ) : null}
               </div>
 
               {/* Amendment History */}
-              {selectedBooking.amendmentLogs && selectedBooking.amendmentLogs.length > 0 && (
+              {selectedBooking.amendmentLogs && selectedBooking.amendmentLogs.length > 0 ? (
                 <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6">
                   <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
                     <Clock className="w-5 h-5" />
@@ -574,10 +549,10 @@ function AmendBooking() {
                     ))}
                   </div>
                 </div>
-              )}
+              ) : null}
 
               {/* Edit Form */}
-              {selectedBooking.status !== 'CANCELLED' && selectedBooking.status !== 'VOID' && (
+              {selectedBooking.status !== 'CANCELLED' && selectedBooking.status !== 'VOID' ? (
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {/* Customer Name */}
@@ -744,7 +719,7 @@ function AmendBooking() {
                   </div>
 
                   {/* Changes Summary */}
-                  {amendLogs.length > 0 && (
+                  {amendLogs.length > 0 ? (
                     <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
                       <h3 className="font-semibold text-yellow-900 mb-2">การเปลี่ยนแปลงที่จะบันทึก:</h3>
                       <ul className="text-yellow-800 space-y-1">
@@ -755,7 +730,7 @@ function AmendBooking() {
                         ))}
                       </ul>
                     </div>
-                  )}
+                  ) : null}
 
                   {/* Action Buttons */}
                   <div className="flex items-center gap-4 pt-6 border-t">
@@ -780,9 +755,9 @@ function AmendBooking() {
                     </button>
                   </div>
                 </div>
-              )}
+              ) : null}
             </div>
-          )}
+          ) : null}
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Navigate } from "@tanstack/react-router";
 import { useForm } from "@tanstack/react-form";
 import { useMutation } from "@tanstack/react-query";
-import { useAuth } from "@/hooks/useAuth";
+import { useAuthStore } from "@/hooks/auth";
 import { register as apiRegister } from "@/lib/api";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,22 +14,22 @@ export const Route = createFileRoute("/_authenticated/register")({
 });
 
 function RegisterComponent() {
-  const { login, isAuthenticated } = useAuth();
+  const { setAuth, isAuthenticated } = useAuthStore();
   const navigate = useNavigate();
 
   const mutation = useMutation({
-    mutationFn: ({ email, password, username, lastname }: { email: string; password: string; username: string; lastname: string; }) =>
-      apiRegister(email, password, username, lastname),
+    mutationFn: apiRegister,
     onSuccess: (data) => {
-      login(data.user, data.token);
-      navigate({ to: "/dashboard" });
+      if (data.data?.user && data.data?.accessToken) {
+        setAuth(data.data.user, data.data.accessToken, data.data.refreshToken || "");
+        navigate({ to: "/dashboard" });
+      }
     },
   });
 
   const form = useForm({
     defaultValues: {
-      username: "",
-      lastname: "",
+      fullName: "",
       email: "",
       password: "",
     },
@@ -58,27 +58,12 @@ function RegisterComponent() {
         >
           <CardContent className="space-y-4">
             <form.Field
-              name="username"
+              name="fullName"
               children={(field) => (
                 <div className="space-y-2">
-                  <Label htmlFor="username">username</Label>
+                  <Label htmlFor="fullName">Full Name</Label>
                   <Input
-                    id="username"
-                    type="text"
-                    value={field.state.value}
-                    onChange={(e) => field.handleChange(e.target.value)}
-                    placeholder="John Doe"
-                  />
-                </div>
-              )}
-            />
-            <form.Field
-              name="lastname"
-              children={(field) => (
-                <div className="space-y-2">
-                  <Label htmlFor="lastname">lastname</Label>
-                  <Input
-                    id="lastname"
+                    id="fullName"
                     type="text"
                     value={field.state.value}
                     onChange={(e) => field.handleChange(e.target.value)}

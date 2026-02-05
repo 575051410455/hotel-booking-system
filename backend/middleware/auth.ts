@@ -1,12 +1,5 @@
-import { Context, Next } from "hono";
-import { verifyToken, JWTPayload } from "../utils/jwt";
-
-// Extend Hono context
-declare module "hono" {
-  interface ContextVariableMap {
-    user: JWTPayload;
-  }
-}
+import type { Context, Next } from "hono";
+import { verifyToken } from "../utils/jwt";
 
 export async function authMiddleware(c: Context, next: Next) {
   const authHeader = c.req.header("Authorization");
@@ -32,7 +25,7 @@ export function requireRole(...roles: string[]) {
     const user = c.get("user");
 
     if (!user) {
-      return c.json({ success: false, message: "กรุณาเข้าสู่ระบบ" }, 401);
+      return c.json({ success: false, message: "Please Login" }, 401);
     }
 
     if (!roles.includes(user.role)) {

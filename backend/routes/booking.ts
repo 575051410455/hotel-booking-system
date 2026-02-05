@@ -9,8 +9,26 @@ import {
   listBookingsQuerySchema,
   checkAvailabilitySchema,
 } from '../types';
+import { success } from 'zod';
 
 const bookingRoutes = new Hono();
+
+
+// List bookings with filters
+bookingRoutes.get(
+  '/',
+  zValidator('query', listBookingsQuerySchema),
+  async (c) => {
+    try {
+      const query = c.req.valid('query');
+    
+      const result = await bookingService.listBookings(query);
+      return c.json({ success: true, data: result });
+    } catch (error: any) {
+      return c.json({ success: false, error: error.message }, 400);
+    }
+  }
+);
 
 // Create booking
 bookingRoutes.post(
@@ -27,21 +45,20 @@ bookingRoutes.post(
   }
 );
 
-// List bookings with filters
-bookingRoutes.get(
-  '/',
-  zValidator('query', listBookingsQuerySchema),
-  async (c) => {
-    try {
-      const query = c.req.valid('query');
-      const { page = 1, limit = 50, ...filters } = query;
-      const result = await bookingService.listBookings(filters, page, limit);
-      return c.json({ success: true, ...result });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
+// Get single booking
+bookingRoutes.get('/:bookingId', async (c) => {
+  try {
+    const bookingId = c.req.param('bookingId');
+    const booking = await bookingService.getBooking(bookingId);
+    if (!booking) {
+      return c.json({ success: false, error: "Booking not found" }, 404);
     }
+    return c.json({ success: true, data: booking });
+  } catch (error: any) {
+    return c.json({ success: false, error: error.message }, 404);
   }
-);
+});
+
 
 // Check availability - Must be before /:bookingId to avoid route conflict
 bookingRoutes.post(
@@ -62,40 +79,26 @@ bookingRoutes.post(
   }
 );
 
-// Get single booking
-bookingRoutes.get('/:bookingId', async (c) => {
+
+// PATCH /bookings/:id - Update
+bookingRoutes.patch("/:id", zValidator("json", updateBookingSchema), async (c) => {
+  const id = c.req.param("id");
+  const data = c.req.valid("json");
+  const booking = await bookingService.updateBooking(id, data);
+  return c.json({ success: true, data: booking });
+})
+
+// Delete booking
+bookingRoutes.delete('/:bookingId', async (c) => {
   try {
     const bookingId = c.req.param('bookingId');
-    const booking = await bookingService.getBooking(bookingId);
-    return c.json({ success: true, data: booking });
+    const booking = await bookingService.confirmBooking(bookingId);
+    return c.json({ success: true, message: 'Booking deleted successfully' });
   } catch (error: any) {
-    return c.json({ success: false, error: error.message }, 404);
+    return c.json({ success: false, error: error.message }, 400);
   }
 });
 
-// Update booking
-bookingRoutes.patch(
-  '/:bookingId',
-  zValidator('json', updateBookingSchema, (result, c) => {
-    if (!result.success) {
-      // Rereturn validation errors
-      return c.json({ 
-        success: false,
-        errors: 'Validation failed',  
-      },  400);
-    }
-  }),
-  async (c) => {
-    try {
-      const bookingId = c.req.param('bookingId');
-      const data = c.req.valid('json');
-      const booking = await bookingService.updateBooking(bookingId, data);
-      return c.json({ success: true, data: booking });
-    } catch (error: any) {
-      return c.json({ success: false, error: error.message }, 400);
-    }
-  }
-);
 
 // Cancel booking
 bookingRoutes.post(
@@ -140,15 +143,5 @@ bookingRoutes.post('/:bookingId/confirm', async (c) => {
   }
 });
 
-// Delete booking
-bookingRoutes.delete('/:bookingId', async (c) => {
-  try {
-    const bookingId = c.req.param('bookingId');
-    await bookingService.deleteBooking(bookingId);
-    return c.json({ success: true, message: 'Booking deleted successfully' });
-  } catch (error: any) {
-    return c.json({ success: false, error: error.message }, 400);
-  }
-});
 
 export default bookingRoutes;

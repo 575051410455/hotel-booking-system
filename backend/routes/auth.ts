@@ -8,6 +8,7 @@ import {
   loginSchema,
   refreshTokenSchema,
   changePasswordSchema,
+  createUserSchema,
 } from "../types";
 import {
   generateAccessToken,
@@ -17,6 +18,7 @@ import {
 } from "../utils/jwt";
 import { logActivity } from "../utils/logger";
 import { authMiddleware } from "../middleware/auth";
+
 
 const auth = new Hono();
 
@@ -110,6 +112,76 @@ auth.post("/login", zValidator("json", loginSchema), async (c) => {
     return c.json({ success: false, message: "เกิดข้อผิดพลาดในการเข้าสู่ระบบ" }, 500);
   }
 });
+
+// Register 
+auth.post("/register", zValidator("json", createUserSchema), async (c) => {
+  const { email, password, fullName } = c.req.valid("json");
+  const ipAddress = c.req.header("x-forwarded-for") || "unknown";
+  const userAgent = c.req.header("user-agent") || "unknown";
+
+  try {
+    const existingUser = await db.query.users.findFirst({
+      where: eq(users.email, email),
+    });
+
+    if (existingUser) {
+      return c.json({ success: false, message: "Email already exists" }, 409);
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const [newUser] = await db
+      .insert(users)
+      .values({
+        email,
+        password: hashedPassword,
+        fullName: fullName,
+        role: "user",
+        isActive: true,
+      })
+      .returning();
+
+    if (!newUser) {
+      console.log("Error user failed create")
+      return c.json({ success: false, message: "Failed Create User not found!"})
+    }
+
+    const accessToken = generateAccessToken(newUser);
+    const refreshToken = generateRefreshToken(newUser);
+
+    await db.insert(refreshTokens).values({
+      userId: newUser?.id,
+      token: refreshToken,
+      expiresAt: getRefreshTokenExpiry(),
+    });
+
+    await logActivity({
+      userId: newUser.id,
+      userName: newUser.fullName,
+      action: "Register",
+      details: "สมัครสมาชิกสำเร็จ",
+      ipAddress,
+      userAgent
+    })
+
+    const { password: _, ...userWithoutPassword } = newUser;
+
+    return c.json({
+      success: true,
+      message: "สมัครสมาชิกสำเร็จ",
+      data: {
+        user: userWithoutPassword,
+        accessToken,
+        refreshToken,
+      },
+    });
+    
+  } catch (error) {
+    console.error("Register error:", error);
+    return c.json({ success: false, message: "เกิดข้อผิดพลาดในการสมัครสมาชิก"}, 500);
+  }
+}) 
+
 
 // Refresh token
 auth.post("/refresh", zValidator("json", refreshTokenSchema), async (c) => {
